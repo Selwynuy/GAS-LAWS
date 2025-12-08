@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:scuba_gas_laws_game/screens/boyles_law_activities_screen.dart';
+import 'package:scuba_gas_laws_game/screens/boyles_law_activity.dart';
+import 'package:scuba_gas_laws_game/screens/scuba_boyles_law_activity/scuba_boyles_law_activity.dart';
 import 'package:scuba_gas_laws_game/screens/settings_screen.dart';
 
-/// Screen for selecting which gas law to explore.
-class GasLawSelectionScreen extends StatelessWidget {
-  const GasLawSelectionScreen({super.key});
+/// Screen for selecting which Boyle's Law activity to explore.
+class BoylesLawActivitiesScreen extends StatelessWidget {
+  const BoylesLawActivitiesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -73,41 +74,64 @@ class GasLawSelectionScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              // Title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "Boyle's Law Activities",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
               // Main content
               Expanded(
                 child: Stack(
                   children: [
-                    // Gas law buttons
+                    // Activity buttons
                     Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _GasLawButton(
-                            title: "Boyle's Law",
+                          _ActivityButton(
+                            title: "Syringe Test",
+                            icon: Icons.science,
                             onPressed: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (context) => const BoylesLawActivitiesScreen()),
+                                MaterialPageRoute(builder: (context) => const BoylesLawActivity()),
                               );
                             },
                           ),
                           const SizedBox(height: 20),
-                          _GasLawButton(
-                            title: "Charles Law",
+                          _ActivityButton(
+                            title: "Scuba Diver",
+                            icon: Icons.pool,
                             onPressed: () {
-                              // TODO: Navigate to Charles Law screen
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Charles Law coming soon!')),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const ScubaBoylesLawActivity()),
                               );
                             },
                           ),
                           const SizedBox(height: 20),
-                          _GasLawButton(
-                            title: "Mixed Gas Law",
+                          _ActivityButton(
+                            title: "Drag and Drop Quiz",
+                            icon: Icons.quiz,
                             onPressed: () {
-                              // TODO: Navigate to Mixed Gas Law screen
+                              // TODO: Navigate to drag and drop quiz screen
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Mixed Gas Law coming soon!')),
+                                const SnackBar(content: Text('Drag and Drop Quiz coming soon!')),
                               );
                             },
                           ),
@@ -125,21 +149,23 @@ class GasLawSelectionScreen extends StatelessWidget {
   }
 }
 
-/// Glowing gas law selection button.
-class _GasLawButton extends StatefulWidget {
+/// Glowing activity selection button.
+class _ActivityButton extends StatefulWidget {
   final String title;
+  final IconData icon;
   final VoidCallback onPressed;
 
-  const _GasLawButton({
+  const _ActivityButton({
     required this.title,
+    required this.icon,
     required this.onPressed,
   });
 
   @override
-  State<_GasLawButton> createState() => _GasLawButtonState();
+  State<_ActivityButton> createState() => _ActivityButtonState();
 }
 
-class _GasLawButtonState extends State<_GasLawButton>
+class _ActivityButtonState extends State<_ActivityButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _glowAnimation;
@@ -181,8 +207,12 @@ class _GasLawButtonState extends State<_GasLawButton>
           ),
           child: SizedBox(
             width: 280,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               onPressed: widget.onPressed,
+              icon: Icon(widget.icon, size: 28),
+              label: Text(
+                widget.title,
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.lightBlue.shade400,
                 foregroundColor: Colors.white,
@@ -191,15 +221,6 @@ class _GasLawButtonState extends State<_GasLawButton>
                   borderRadius: BorderRadius.circular(16),
                 ),
                 elevation: 8,
-              ),
-              child: Text(
-                widget.title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
-                  color: Colors.white,
-                ),
               ),
             ),
           ),

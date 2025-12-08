@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-/// Boyle's Law Activity: Syringe and Balloon demonstration.
 class BoylesLawActivity extends StatefulWidget {
   const BoylesLawActivity({super.key});
 
@@ -9,69 +8,80 @@ class BoylesLawActivity extends StatefulWidget {
   State<BoylesLawActivity> createState() => _BoylesLawActivityState();
 }
 
-class _BoylesLawActivityState extends State<BoylesLawActivity> {
-  // Syringe state
-  double _maxVolume = 60.0; // mL
-  double _currentVolume = 30.0; // Current volume in mL
-  double _plungerPosition = 0.5; // 0.0 (bottom) to 1.0 (top)
-
-  // Balloon state
+class _BoylesLawActivityState extends State<BoylesLawActivity> with SingleTickerProviderStateMixin {
+  double _maxVolume = 60.0;
+  double _currentVolume = 30.0;
+  double _plungerPosition = 0.5;
+  
   bool _balloonInSyringe = false;
-  Offset _balloonPosition = const Offset(250, 350); // Initial position for dragging
-  double _balloonSize = 1.0; // Scale factor based on pressure
-  bool _isAtMaxPressure = false; // Visual feedback flag
+  Offset _balloonPosition = const Offset(250, 350);
+  double _balloonSize = 1.0;
+  bool _isAtMaxPressure = false;
+  bool _isAnimatingBalloon = false;
+  
+  bool _isSealed = false;
+  double _pressure = 1.0;
+  double _initialVolume = 30.0;
+  double _minVolume = 1.0;
 
-  // System state
-  bool _isSealed = false; // Finger sealing the opening
-  double _pressure = 1.0; // atm (atmospheric pressure)
-  double _initialVolume = 30.0; // Volume when sealed
-  double _minVolume = 1.0; // Minimum volume when balloon is at max pressure
-
-  // Balloon physical limit
-  static const double _maxBalloonPressure = 3.0; // atm - maximum pressure balloon can withstand
-  static const double _balloonBaseHeight = 60.0; // pixels - base height of balloon widget
-
-  // Graph data points
+  static const double _maxBalloonPressure = 3.0;
+  static const double _balloonBaseHeight = 60.0;
+  
   final List<Offset> _graphPoints = [];
+
+  AnimationController? _balloonReleaseController;
+  Animation<double>? _balloonReleaseAnimation;
 
   @override
   void initState() {
     super.initState();
+    _balloonReleaseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    
+    _balloonReleaseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _balloonReleaseController!,
+      curve: Curves.easeOut,
+    ))
+      ..addListener(() {
+        if (mounted && _balloonReleaseAnimation != null) {
+          setState(() {
+            _balloonSize = _balloonReleaseAnimation!.value;
+          });
+        }
+      });
+    
     _resetActivity();
+  }
+
+  @override
+  void dispose() {
+    _balloonReleaseController?.dispose();
+    super.dispose();
   }
 
   void _onPlungerDragUpdate(DragUpdateDetails details) {
     setState(() {
-      // Vertical drag: dragging up pulls plunger out (increases volume)
-      // dragging down pushes plunger in (decreases volume)
-      final delta = -details.delta.dy / 300; // Normalize based on syringe height
+      final delta = -details.delta.dy / 300;
       double newPlungerPosition = (_plungerPosition + delta).clamp(0.0, 1.0);
 
-      // Calculate new volume
       double newVolume = newPlungerPosition * _maxVolume;
-      if (newVolume < 1) newVolume = 1; // Min volume to avoid errors
+      if (newVolume < 1) newVolume = 1;
 
-      // If balloon is in syringe, enforce minimum volume limit
       if (_balloonInSyringe) {
         if (_isSealed) {
-          // Sealed: prevent volume from going below minimum (balloon pressure limit)
           if (newVolume < _minVolume) {
             newVolume = _minVolume;
             newPlungerPosition = _minVolume / _maxVolume;
           }
         } else {
-          // Unsealed: prevent plunger from touching balloon (physical size limit)
-          // Calculate minimum volume based on balloon's physical size
-          // Balloon takes up space, so plunger can't compress it beyond its size
-          // When unsealed, balloon size is 1.0, so it's at base height
-          // Estimate: balloon height (60px) relative to typical syringe usable height (~400px)
-          // This gives us a minimum volume percentage
           final double balloonPhysicalHeight = _balloonBaseHeight * _balloonSize;
-          // Convert balloon height to volume (linear relationship: height proportional to volume)
-          // Typical syringe usable height is ~400px (after accounting for opening and plunger)
           const double typicalSyringeUsableHeight = 400.0;
           final double minVolumeUnsealed = (balloonPhysicalHeight / typicalSyringeUsableHeight) * _maxVolume;
-          // Ensure minimum is at least 10% of max volume to be safe
           final double safeMinVolume = math.max(minVolumeUnsealed, _maxVolume * 0.1);
           if (newVolume < safeMinVolume) {
             newVolume = safeMinVolume;
@@ -84,15 +94,12 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
       _currentVolume = newVolume;
 
       if (_isSealed && _balloonInSyringe) {
-        // Apply Boyle's Law
         if (_currentVolume > 0.1 && _initialVolume > 0) {
           double calculatedPressure = (1.0 * _initialVolume) / _currentVolume;
           
-          // Cap pressure at balloon's maximum
           if (calculatedPressure > _maxBalloonPressure) {
             _pressure = _maxBalloonPressure;
             _isAtMaxPressure = true;
-            // Recalculate volume to match capped pressure
             _currentVolume = (1.0 * _initialVolume) / _maxBalloonPressure;
             _plungerPosition = _currentVolume / _maxVolume;
           } else {
@@ -101,11 +108,61 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
           }
           
           _pressure = _pressure.clamp(0.1, _maxBalloonPressure);
-          _balloonSize = (1.0 / _pressure).clamp(0.2, 1.5);
+          if (!_isAnimatingBalloon) {
+            _balloonSize = (1.0 / _pressure).clamp(0.5, 2.5);
+          }
           _addGraphPoint();
         }
       }
     });
+  }
+
+  void _onPlungerDragEnd(DragEndDetails details) {
+    if (!_isSealed && _balloonInSyringe && _balloonReleaseController != null) {
+      final double currentSize = _balloonSize;
+      
+      if ((currentSize - 1.0).abs() > 0.01) {
+        _balloonReleaseController!.stop();
+        _balloonReleaseController!.reset();
+        
+        if (_balloonReleaseAnimation != null) {
+          _balloonReleaseAnimation!.removeListener(() {});
+        }
+        
+        _balloonReleaseAnimation = Tween<double>(
+          begin: currentSize,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: _balloonReleaseController!,
+          curve: Curves.easeOut,
+        ));
+        
+        _isAnimatingBalloon = true;
+        _balloonReleaseAnimation!.addListener(() {
+          if (mounted) {
+            setState(() {
+              _balloonSize = _balloonReleaseAnimation!.value;
+            });
+          }
+        });
+        
+        _balloonReleaseController!.addStatusListener((status) {
+          if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+            _isAnimatingBalloon = false;
+          }
+        });
+        
+        _balloonReleaseController!.forward();
+      }
+      
+      setState(() {
+        _pressure = 1.0;
+        _isAtMaxPressure = false;
+        if ((currentSize - 1.0).abs() <= 0.01) {
+          _balloonSize = 1.0;
+        }
+      });
+    }
   }
 
   void _addGraphPoint() {
@@ -126,15 +183,16 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
   }
 
   void _onBalloonDragEnd(DragEndDetails details) {
-    // Check if balloon is dropped near syringe opening (bottom of syringe)
-    // Syringe is on the left, let's say its center X is around 100
     final syringeOpeningX = 100.0;
-    final syringeOpeningY = 450.0; // Approximate bottom of the screen
+    final syringeOpeningY = 450.0;
 
     if ((_balloonPosition.dx - syringeOpeningX).abs() < 100 &&
         (_balloonPosition.dy - syringeOpeningY).abs() < 100) {
       setState(() {
         _balloonInSyringe = true;
+        _balloonSize = 1.0;
+        _isAnimatingBalloon = false;
+        _balloonReleaseController?.reset();
       });
     }
   }
@@ -143,17 +201,66 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
     setState(() {
       _isSealed = !_isSealed;
       if (_isSealed && _balloonInSyringe) {
+        // Stop any ongoing animations first
+        _balloonReleaseController?.stop();
+        _balloonReleaseController?.reset();
+        _isAnimatingBalloon = false;
+        
+        // Ensure plunger position matches current volume to avoid mismatch
+        _plungerPosition = _currentVolume / _maxVolume;
         _initialVolume = _currentVolume;
         _pressure = 1.0;
-        // Calculate minimum volume based on max balloon pressure
-        // P1 * V1 = P2 * V2 => V2 = (P1 * V1) / P2
+        _balloonSize = 1.0;
         _minVolume = (1.0 * _initialVolume) / _maxBalloonPressure;
         _isAtMaxPressure = false;
         _graphPoints.clear();
         _addGraphPoint();
       } else {
+        // Unsealing: stop any animations and reset to normal state
+        _balloonReleaseController?.stop();
+        _balloonReleaseController?.reset();
+        _isAnimatingBalloon = false;
+        
+        if (_balloonInSyringe && _balloonReleaseController != null) {
+          final double currentSize = _balloonSize;
+          
+          if ((currentSize - 1.0).abs() > 0.01) {
+            if (_balloonReleaseAnimation != null) {
+              _balloonReleaseAnimation!.removeListener(() {});
+            }
+            
+            _balloonReleaseAnimation = Tween<double>(
+              begin: currentSize,
+              end: 1.0,
+            ).animate(CurvedAnimation(
+              parent: _balloonReleaseController!,
+              curve: Curves.easeOut,
+            ));
+            
+            _isAnimatingBalloon = true;
+            _balloonReleaseAnimation!.addListener(() {
+              if (mounted) {
+                setState(() {
+                  _balloonSize = _balloonReleaseAnimation!.value;
+                });
+              }
+            });
+            
+            _balloonReleaseController!.addStatusListener((status) {
+              if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+                _isAnimatingBalloon = false;
+              }
+            });
+            
+            _balloonReleaseController!.forward();
+          } else {
+            _balloonSize = 1.0;
+          }
+        } else {
+          _balloonSize = 1.0;
+        }
+        
         _pressure = 1.0;
-        _balloonSize = 1.0;
         _isAtMaxPressure = false;
         _minVolume = 1.0;
       }
@@ -173,6 +280,7 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
       _minVolume = 1.0;
       _isAtMaxPressure = false;
       _graphPoints.clear();
+      _balloonReleaseController?.reset();
     });
   }
 
@@ -196,28 +304,26 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
         child: SafeArea(
           child: Column(
             children: [
-              // Main interactive area
               Expanded(
                 child: LayoutBuilder(builder: (context, constraints) {
                   return Stack(
-                    children: [
-                      // Left side: Syringe
+                  children: [
                       Positioned(
                         left: 20,
                         top: 20,
                         bottom: 20,
                         width: 120,
                         child: _VerticalSyringeWidget(
-                          plungerPosition: _plungerPosition,
-                          isSealed: _isSealed,
-                          balloonInSyringe: _balloonInSyringe,
-                          balloonSize: _balloonSize,
+                              plungerPosition: _plungerPosition,
+                              isSealed: _isSealed,
+                              balloonInSyringe: _balloonInSyringe,
+                              balloonSize: _balloonSize,
                           isAtMaxPressure: _isAtMaxPressure,
-                          onPlungerDrag: _onPlungerDragUpdate,
-                        ),
-                      ),
-                      // Graph on top right
-                      Positioned(
+                              onPlungerDrag: _onPlungerDragUpdate,
+                              onPlungerDragEnd: _onPlungerDragEnd,
+                            ),
+                          ),
+                            Positioned(
                         top: 20,
                         right: 20,
                         width: constraints.maxWidth - 180,
@@ -228,7 +334,6 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
                           currentPressure: _pressure,
                         ),
                       ),
-                      // Draggable balloon if not in syringe
                       if (!_balloonInSyringe)
                         Positioned(
                           left: _balloonPosition.dx,
@@ -236,20 +341,19 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
                           child: GestureDetector(
                             onPanUpdate: (details) => _onBalloonDragUpdate(details, constraints),
                             onPanEnd: _onBalloonDragEnd,
-                            child: const _BalloonWidget(),
-                          ),
-                        ),
-                    ],
+                            child: const _BalloonWidget(size: Size(50, 60)),
+                      ),
+                    ),
+                  ],
                   );
                 }),
               ),
-              // Info and controls
               Container(
                 padding: const EdgeInsets.all(12.0),
                 color: Colors.white.withOpacity(0.9),
                 child: Column(
-                  children: [
-                    Text(
+                      children: [
+                        Text(
                       !_balloonInSyringe
                           ? 'STEP 1: Drag the balloon into the syringe'
                           : !_isSealed
@@ -258,8 +362,8 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
                                   ? 'STEP 3: Balloon at MAX PRESSURE! Cannot compress further.'
                                   : 'STEP 3: Change volume to see Boyle\'s Law',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                         color: _isAtMaxPressure ? Colors.red.shade700 : Colors.black,
                       ),
                       textAlign: TextAlign.center,
@@ -309,14 +413,14 @@ class _BoylesLawActivityState extends State<BoylesLawActivity> {
   }
 }
 
-/// Vertical syringe widget.
 class _VerticalSyringeWidget extends StatelessWidget {
-  final double plungerPosition; // 0.0 (bottom) to 1.0 (top)
+  final double plungerPosition;
   final bool isSealed;
   final bool balloonInSyringe;
   final double balloonSize;
   final bool isAtMaxPressure;
   final Function(DragUpdateDetails) onPlungerDrag;
+  final Function(DragEndDetails) onPlungerDragEnd;
 
   const _VerticalSyringeWidget({
     required this.plungerPosition,
@@ -325,110 +429,372 @@ class _VerticalSyringeWidget extends StatelessWidget {
     required this.balloonSize,
     required this.isAtMaxPressure,
     required this.onPlungerDrag,
+    required this.onPlungerDragEnd,
   });
 
   @override
   Widget build(BuildContext context) {
-    const syringeWidth = 100.0;
-    const plungerHandleHeight = 20.0;
-    const plungerHeadHeight = 15.0;
-    const openingHeight = 20.0;
+    const outerBodyWidth = 75.0;
+    const innerTubeWidth = 55.0;
+    const flangeWidth = 20.0;
+    const plungerHeadHeight = 18.0;
+    const openingHeight = 18.0;
+    const thumbPadHeight = 20.0;
 
     return LayoutBuilder(builder: (context, constraints) {
-      final syringeHeight = constraints.maxHeight;
-      final double airVolumeMaxHeight = syringeHeight - openingHeight - plungerHeadHeight;
-      final double plungerHeadBottom = openingHeight + (plungerPosition * airVolumeMaxHeight);
+      final availableHeight = constraints.maxHeight;
+      const topPadding = 25.0;
+      final syringeBodyHeight = availableHeight - topPadding;
+      final double innerTubeTop = syringeBodyHeight - plungerHeadHeight;
+      final double innerTubeHeight = innerTubeTop - openingHeight;
+      
+      final double stopPosition = syringeBodyHeight - plungerHeadHeight;
+      final double maxHeadBottom = stopPosition - plungerHeadHeight - 10;
+      final double effectiveMaxHeadBottom = math.min(innerTubeTop, maxHeadBottom);
+      
+      final double plungerHeadBottom = openingHeight + (plungerPosition * innerTubeHeight);
+      final double clampedPlungerHeadBottom = plungerHeadBottom.clamp(openingHeight, effectiveMaxHeadBottom);
+      
+      final double plungerRodTop = clampedPlungerHeadBottom + plungerHeadHeight;
+      final double plungerRodHeight = syringeBodyHeight - 60;
 
       return Stack(
         alignment: Alignment.bottomCenter,
         clipBehavior: Clip.none,
         children: [
-          // Syringe barrel
           Positioned(
             bottom: 0,
-            left: (constraints.maxWidth - syringeWidth) / 2,
-            child: Container(
-              width: syringeWidth,
-              height: syringeHeight,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.grey.shade600, width: 4),
+            left: (constraints.maxWidth - outerBodyWidth) / 2,
+            child: CustomPaint(
+              size: Size(outerBodyWidth, syringeBodyHeight),
+              painter: _RealisticSyringePainter(
+                syringeHeight: syringeBodyHeight,
+                outerBodyWidth: outerBodyWidth,
+                innerTubeWidth: innerTubeWidth,
+                flangeWidth: flangeWidth,
+                openingHeight: openingHeight,
+                plungerHeadBottom: plungerHeadBottom,
+                plungerRodTop: plungerRodTop,
+                plungerRodHeight: plungerRodHeight,
+                plungerHeadHeight: plungerHeadHeight,
+                thumbPadHeight: thumbPadHeight,
               ),
             ),
           ),
-          // Balloon
+
+          Positioned(
+            bottom: openingHeight,
+            left: (constraints.maxWidth - innerTubeWidth) / 2,
+            child: Container(
+              width: innerTubeWidth,
+              height: syringeBodyHeight - openingHeight - plungerHeadHeight,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.7),
+                    Colors.blue.shade50.withOpacity(0.5),
+                    Colors.white.withOpacity(0.6),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.grey.shade600,
+                  width: 2,
+                ),
+              ),
+              child: CustomPaint(
+                painter: _SyringeBarrelPainter(
+                  syringeHeight: syringeBodyHeight - openingHeight - plungerHeadHeight,
+                  openingHeight: 0,
+                ),
+              ),
+            ),
+          ),
+
           if (balloonInSyringe)
             Positioned(
               bottom: openingHeight,
               height: plungerHeadBottom > openingHeight ? plungerHeadBottom - openingHeight : 0,
-              left: (constraints.maxWidth - syringeWidth) / 2,
-              width: syringeWidth,
+              left: (constraints.maxWidth - innerTubeWidth) / 2,
+              width: innerTubeWidth,
               child: Align(
                 alignment: Alignment.center,
-                child: Transform.scale(
-                  scale: balloonSize,
-                  child: _BalloonWidget(isAtMaxPressure: isAtMaxPressure),
+                child: LayoutBuilder(
+                  builder: (context, balloonConstraints) {
+                    const double padding = 2.0;
+                    final double maxBalloonWidth = innerTubeWidth - (padding * 2);
+                    final double balloonWidth = maxBalloonWidth * balloonSize.clamp(0.5, 2.5);
+                    final double balloonHeight = balloonWidth / 0.833;
+                    
+                    final double maxHeight = balloonConstraints.maxHeight;
+                    final double clampedHeight = balloonHeight.clamp(30.0, maxHeight);
+                    final double clampedWidth = clampedHeight * 0.833;
+                    
+                    return AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: SizedBox(
+                        width: clampedWidth,
+                        height: clampedHeight,
+                        child: _BalloonWidget(
+                          isAtMaxPressure: isAtMaxPressure,
+                          size: Size(clampedWidth, clampedHeight),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
-          
-          // Plunger Assembly
+
           Positioned(
-            bottom: plungerHeadBottom,
-            left: (constraints.maxWidth - (syringeWidth + 20)) / 2,
+            bottom: clampedPlungerHeadBottom,
+            left: (constraints.maxWidth - outerBodyWidth) / 2,
             child: GestureDetector(
               onVerticalDragUpdate: onPlungerDrag,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle
-                  Container(
-                    width: syringeWidth + 20,
-                    height: plungerHandleHeight,
-                    decoration: BoxDecoration(
-                      color: Colors.blueGrey,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.black54, width: 2),
+              onVerticalDragEnd: onPlungerDragEnd,
+              child: SizedBox(
+                width: outerBodyWidth,
+                height: plungerRodHeight + plungerHeadHeight + 20,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      bottom: 0,
+                      left: (outerBodyWidth - innerTubeWidth) / 2 + 1,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: innerTubeWidth - 2,
+                            height: 3,
+              decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.grey.shade300,
+                                  Colors.grey.shade400,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          Container(
+                            width: innerTubeWidth - 2,
+                            height: 3,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.grey.shade300,
+                                  Colors.grey.shade400,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          Container(
+                            width: innerTubeWidth - 2,
+                            height: plungerHeadHeight - 6,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade900,
+                              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                              border: Border.all(color: Colors.black, width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.7),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: const Icon(Icons.drag_handle, color: Colors.white),
-                  ),
-                  // Shaft
-                  Container(
-                    width: 10,
-                    height: syringeHeight - plungerHeadBottom,
-                    color: Colors.grey.shade500,
-                  ),
-                  // Head
-                  Container(
-                    width: syringeWidth - 10,
-                    height: plungerHeadHeight,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade800,
+
+          Positioned(
+                      bottom: plungerHeadHeight,
+                      left: (outerBodyWidth - 8) / 2,
+              child: Container(
+                        width: 8,
+                        height: plungerRodHeight,
+                decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.grey.shade200,
+                              Colors.grey.shade300,
+                              Colors.grey.shade400,
+                              Colors.grey.shade300,
+                            ],
+                            stops: const [0.0, 0.3, 0.7, 1.0],
+                          ),
+                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(3)),
+                          border: Border.all(color: Colors.grey.shade500, width: 0.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.6),
+                              blurRadius: 2,
+                              offset: const Offset(-1, 0),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 4,
+                              offset: const Offset(1, 2),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+
+          Positioned(
+                      bottom: plungerRodHeight + plungerHeadHeight,
+                      left: (outerBodyWidth - (outerBodyWidth + 30)) / 2,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                            width: outerBodyWidth + 30,
+                            height: 10,
+                  decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.grey.shade200,
+                                  Colors.grey.shade300,
+                                  Colors.grey.shade400,
+                                  Colors.grey.shade500,
+                                ],
+                                stops: const [0.0, 0.3, 0.7, 1.0],
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(color: Colors.grey.shade600, width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.white.withOpacity(0.6),
+                                  blurRadius: 3,
+                                  offset: const Offset(0, -2),
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 12,
+                            height: 4,
+                      decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.grey.shade300,
+                                  Colors.grey.shade400,
+                                ],
+                              ),
+                              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(2)),
+                            ),
+                          ),
+                          Container(
+                            width: 8,
+                            height: 3,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade400,
+                              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(2)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+              ),
+            ),
+          ),
+
+                  Positioned(
+            bottom: 0,
+            left: (constraints.maxWidth - 35) / 2,
+                    child: Container(
+              width: 35,
+              height: openingHeight,
+                      decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.grey.shade500,
+                    Colors.grey.shade600,
+                    Colors.grey.shade700,
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                border: Border.all(color: Colors.grey.shade800, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
             ),
           ),
 
-          // Opening
           Positioned(
-            bottom: 0,
-            left: (constraints.maxWidth - 40) / 2,
+            bottom: syringeBodyHeight - plungerHeadHeight - 5,
+            left: (constraints.maxWidth - (outerBodyWidth + 20)) / 2,
             child: Container(
-              width: 40,
-              height: openingHeight,
+              width: outerBodyWidth + 20,
+              height: 10,
               decoration: BoxDecoration(
-                color: Colors.grey.shade400,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(10)),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.grey.shade400,
+                    Colors.grey.shade600,
+                    Colors.grey.shade700,
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                border: Border.all(color: Colors.grey.shade800, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 6,
+                    offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+              child: Center(
+                child: Container(
+                  width: 12,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade800,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: Colors.black, width: 1.5),
+                  ),
+                ),
               ),
             ),
           ),
+
           if (isSealed)
             Positioned(
               bottom: -15,
-              child: Icon(Icons.pan_tool, color: Colors.pink.shade300, size: 30),
+              child: Icon(Icons.pan_tool, color: Colors.pink.shade300, size: 28),
             ),
         ],
       );
@@ -436,44 +802,297 @@ class _VerticalSyringeWidget extends StatelessWidget {
   }
 }
 
-/// Balloon widget.
 class _BalloonWidget extends StatelessWidget {
   final bool isAtMaxPressure;
+  final Size size;
 
-  const _BalloonWidget({this.isAtMaxPressure = false});
+  const _BalloonWidget({
+    this.isAtMaxPressure = false,
+    required this.size,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = isAtMaxPressure ? Colors.orange.shade700 : Colors.red.shade300;
-    final innerColor = isAtMaxPressure ? Colors.orange.shade500 : Colors.red.shade200;
+    final baseColor = isAtMaxPressure ? Colors.deepOrange : Colors.red;
     
-    return SizedBox(
-      width: 50,
-      height: 60,
-      child: Material(
-        color: color,
-        shape: const CircleBorder(),
-        elevation: isAtMaxPressure ? 6.0 : 4.0,
-        child: Center(
-          child: Container(
-            width: 40,
-            height: 50,
-            decoration: BoxDecoration(
-              color: innerColor.withOpacity(0.8),
-              shape: BoxShape.circle,
-              border: isAtMaxPressure
-                  ? Border.all(color: Colors.red.shade900, width: 2)
-                  : null,
-            ),
-          ),
-        ),
+    return CustomPaint(
+      size: size,
+      painter: _BalloonPainter(
+        baseColor: baseColor,
+        isAtMaxPressure: isAtMaxPressure,
       ),
     );
   }
 }
 
+class _BalloonPainter extends CustomPainter {
+  final Color baseColor;
+  final bool isAtMaxPressure;
 
-/// Pressure vs Volume graph.
+  _BalloonPainter({
+    required this.baseColor,
+    required this.isAtMaxPressure,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+
+    final balloonPath = Path();
+    balloonPath.addOval(Rect.fromCenter(
+      center: Offset(centerX, centerY - 5),
+      width: size.width * 0.9,
+      height: size.height * 0.7,
+    ));
+    balloonPath.lineTo(centerX, size.height - 8);
+    balloonPath.close();
+
+    final MaterialColor colorSwatch = isAtMaxPressure ? Colors.deepOrange : Colors.red;
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        colorSwatch.shade200,
+        colorSwatch.shade400,
+        colorSwatch.shade600,
+      ],
+    );
+    paint.shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    paint.style = PaintingStyle.fill;
+    canvas.drawPath(balloonPath, paint);
+
+    final highlightPath = Path();
+    highlightPath.addOval(Rect.fromCenter(
+      center: Offset(centerX - 8, centerY - 10),
+      width: size.width * 0.4,
+      height: size.height * 0.3,
+    ));
+    paint.shader = null;
+    paint.color = Colors.white.withOpacity(0.4);
+    canvas.drawPath(highlightPath, paint);
+
+    paint.color = isAtMaxPressure ? Colors.red.shade900 : colorSwatch.shade800;
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = isAtMaxPressure ? 2.5 : 1.5;
+    canvas.drawPath(balloonPath, paint);
+
+    paint.color = colorSwatch.shade900;
+    paint.style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(centerX, size.height - 6), 3, paint);
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 1;
+    paint.color = Colors.black.withOpacity(0.3);
+    canvas.drawCircle(Offset(centerX, size.height - 6), 3, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _RealisticSyringePainter extends CustomPainter {
+  final double syringeHeight;
+  final double outerBodyWidth;
+  final double innerTubeWidth;
+  final double flangeWidth;
+  final double openingHeight;
+  final double plungerHeadBottom;
+  final double plungerRodTop;
+  final double plungerRodHeight;
+  final double plungerHeadHeight;
+  final double thumbPadHeight;
+
+  _RealisticSyringePainter({
+    required this.syringeHeight,
+    required this.outerBodyWidth,
+    required this.innerTubeWidth,
+    required this.flangeWidth,
+    required this.openingHeight,
+    required this.plungerHeadBottom,
+    required this.plungerRodTop,
+    required this.plungerRodHeight,
+    required this.plungerHeadHeight,
+    required this.thumbPadHeight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    final centerX = size.width / 2;
+    const rodWidth = 6.0;
+
+    final bodyPath = Path();
+    final topY = size.height - thumbPadHeight;
+    bodyPath.moveTo(0, openingHeight);
+    bodyPath.lineTo(0, topY);
+    bodyPath.lineTo(centerX - rodWidth / 2 - 2, topY);
+    bodyPath.lineTo(centerX - rodWidth / 2 - 2, size.height - thumbPadHeight);
+    bodyPath.lineTo(centerX + rodWidth / 2 + 2, size.height - thumbPadHeight);
+    bodyPath.lineTo(centerX + rodWidth / 2 + 2, topY);
+    bodyPath.lineTo(size.width, topY);
+    bodyPath.lineTo(size.width, openingHeight);
+    bodyPath.close();
+
+    final bodyGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Colors.white,
+        Colors.grey.shade200,
+        Colors.grey.shade300,
+      ],
+    );
+    paint.shader = bodyGradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    paint.style = PaintingStyle.fill;
+    canvas.drawPath(bodyPath, paint);
+
+    paint.shader = null;
+    paint.color = Colors.grey.shade600;
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 2.5;
+    canvas.drawPath(bodyPath, paint);
+
+    final flangeHeight = 25.0;
+    final flangeY = openingHeight + 5;
+
+    final leftFlangePath = Path();
+    leftFlangePath.addRRect(RRect.fromRectAndRadius(
+      Rect.fromLTWH(-flangeWidth / 2, flangeY, flangeWidth, flangeHeight),
+      const Radius.circular(8),
+    ));
+    paint.shader = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [
+        Colors.grey.shade400,
+        Colors.grey.shade300,
+        Colors.grey.shade200,
+      ],
+    ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    paint.style = PaintingStyle.fill;
+    canvas.drawPath(leftFlangePath, paint);
+
+    final rightFlangePath = Path();
+    rightFlangePath.addRRect(RRect.fromRectAndRadius(
+      Rect.fromLTWH(size.width - flangeWidth / 2, flangeY, flangeWidth, flangeHeight),
+      const Radius.circular(8),
+    ));
+    canvas.drawPath(rightFlangePath, paint);
+
+    paint.shader = null;
+    paint.color = Colors.grey.shade600;
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 2;
+    canvas.drawPath(leftFlangePath, paint);
+    canvas.drawPath(rightFlangePath, paint);
+
+    paint.shader = null;
+    paint.color = Colors.black.withOpacity(0.1);
+    paint.style = PaintingStyle.fill;
+    final shadowPath = Path();
+    shadowPath.addRRect(RRect.fromRectAndRadius(
+      Rect.fromLTWH(2, openingHeight + 2, size.width - 4, size.height - openingHeight - thumbPadHeight - 2),
+      const Radius.circular(10),
+    ));
+    canvas.drawPath(shadowPath, paint);
+
+    paint.color = Colors.white.withOpacity(0.4);
+    final highlightPath = Path();
+    highlightPath.addRRect(RRect.fromRectAndRadius(
+      Rect.fromLTWH(5, openingHeight + 5, size.width - 10, 15),
+      const Radius.circular(8),
+    ));
+    canvas.drawPath(highlightPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    if (oldDelegate is _RealisticSyringePainter) {
+      return oldDelegate.plungerHeadBottom != plungerHeadBottom ||
+          oldDelegate.plungerRodTop != plungerRodTop;
+    }
+    return true;
+  }
+}
+
+class _SyringeBarrelPainter extends CustomPainter {
+  final double syringeHeight;
+  final double openingHeight;
+
+  _SyringeBarrelPainter({
+    required this.syringeHeight,
+    required this.openingHeight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.shade600
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final usableHeight = size.height - openingHeight;
+    final numMarkings = 6;
+    
+    for (int i = 0; i <= numMarkings; i++) {
+      final y = openingHeight + (i * usableHeight / numMarkings);
+      final isMajorMark = i % 2 == 0;
+      final markWidth = isMajorMark ? 8.0 : 5.0;
+      
+      canvas.drawLine(
+        Offset(2, y),
+        Offset(2 + markWidth, y),
+        paint,
+      );
+      
+      canvas.drawLine(
+        Offset(size.width - 2, y),
+        Offset(size.width - 2 - markWidth, y),
+        paint,
+      );
+
+      if (isMajorMark && i < numMarkings) {
+        final volume = ((numMarkings - i) / numMarkings * 60).toInt();
+        final textSpan = TextSpan(
+          text: '$volume',
+          style: TextStyle(
+            color: Colors.grey.shade700,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+          ),
+        );
+        final textPainter = TextPainter(
+          text: textSpan,
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        textPainter.paint(
+          canvas,
+          Offset(size.width / 2 - textPainter.width / 2, y - textPainter.height / 2),
+        );
+      }
+    }
+
+    final highlightPaint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+    
+    final highlightPath = Path()
+      ..moveTo(5, openingHeight)
+      ..lineTo(15, openingHeight + 10)
+      ..lineTo(15, size.height - 10)
+      ..lineTo(5, size.height)
+      ..close();
+    
+    canvas.drawPath(highlightPath, highlightPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
 class _PressureVolumeGraph extends StatelessWidget {
   final List<Offset> points;
   final double currentVolume;
@@ -524,21 +1143,21 @@ class _PressureVolumeGraph extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                Expanded(
-                  child: CustomPaint(
-                    painter: _GraphPainter(
-                      points: points,
-                      currentVolume: currentVolume,
-                      currentPressure: currentPressure,
-                    ),
-                    child: Container(),
-                  ),
-                ),
+          Expanded(
+            child: CustomPaint(
+              painter: _GraphPainter(
+                points: points,
+                currentVolume: currentVolume,
+                currentPressure: currentPressure,
+              ),
+              child: Container(),
+            ),
+          ),
               ],
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+              Text(
             'Volume (ml)',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade800, fontWeight: FontWeight.w500),
           ),
@@ -581,15 +1200,13 @@ class _GraphPainter extends CustomPainter {
       ..color = Colors.deepOrange
       ..style = PaintingStyle.fill;
 
-    // Draw axes
     final axisPaint = Paint()
       ..color = Colors.grey.shade600
       ..strokeWidth = 1.5;
 
-    canvas.drawLine(origin, Offset(origin.dx + graphWidth, origin.dy), axisPaint); // X-axis
-    canvas.drawLine(origin, Offset(origin.dx, origin.dy - graphHeight), axisPaint); // Y-axis
+    canvas.drawLine(origin, Offset(origin.dx + graphWidth, origin.dy), axisPaint);
+    canvas.drawLine(origin, Offset(origin.dx, origin.dy - graphHeight), axisPaint);
 
-    // Draw grid lines and labels
     final gridPaint = Paint()
       ..color = Colors.grey.shade300
       ..strokeWidth = 1.0;
@@ -603,10 +1220,9 @@ class _GraphPainter extends CustomPainter {
     const maxVolume = 60.0;
     const maxPressure = 6.0;
 
-    // Y-axis grid lines and labels
     for (int i = 0; i <= numGridLines; i++) {
       final y = origin.dy - (i * graphHeight / numGridLines);
-      if (i > 0) { // Don't draw grid line on the axis itself
+      if (i > 0) {
         canvas.drawLine(Offset(origin.dx, y), Offset(origin.dx + graphWidth, y), gridPaint);
       }
 
@@ -617,10 +1233,9 @@ class _GraphPainter extends CustomPainter {
       textPainter.paint(canvas, Offset(origin.dx - textPainter.width - 6, y - textPainter.height / 2));
     }
 
-    // X-axis grid lines and labels
     for (int i = 0; i <= numGridLines; i++) {
       final x = origin.dx + (i * graphWidth / numGridLines);
-      if (i > 0) { // Don't draw grid line on the axis itself
+      if (i > 0) {
         canvas.drawLine(Offset(x, origin.dy), Offset(x, origin.dy - graphHeight), gridPaint);
       }
 
@@ -631,10 +1246,9 @@ class _GraphPainter extends CustomPainter {
       textPainter.paint(canvas, Offset(x - textPainter.width / 2, origin.dy + 6));
     }
 
-    // Draw curve
     if (points.length > 1) {
       final path = Path();
-      
+
       for (int i = 0; i < points.length; i++) {
         final point = points[i];
         final x = origin.dx + (point.dx / maxVolume) * graphWidth;
@@ -649,7 +1263,6 @@ class _GraphPainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
 
-    // Draw current point
     if (currentVolume > 0 && currentPressure > 0) {
       final x = origin.dx + (currentVolume / maxVolume) * graphWidth;
       final y = origin.dy - (currentPressure / maxPressure) * graphHeight;
@@ -662,4 +1275,3 @@ class _GraphPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-

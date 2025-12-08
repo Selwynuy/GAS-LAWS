@@ -25,9 +25,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # You can drop your own PNGs into an assets folder and uncomment this:
-  # assets:
-  #   - assets/images/background_underwater.png
-  #   - assets/images/diver.png
+  assets:
+    - assets/Ocean_Background.png
+    - assets/Scuba_Diver.png
+    - assets/Lungs2.png
+    - assets/HomeScreen_Background.png
 
 

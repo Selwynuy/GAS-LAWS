@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Settings screen for app configuration.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final VoidCallback? onResetActivity;
+  
+  const SettingsScreen({super.key, this.onResetActivity});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -46,6 +48,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
+                // Reset section at the start
+                _buildSection(
+                  title: 'Reset',
+                  icon: Icons.refresh,
+                  children: [
+                    ListTile(
+                      title: const Text(
+                        'Reset Activity',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: const Text(
+                        'Reset the diving simulation to initial state',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      leading: const Icon(Icons.refresh, color: Colors.white70),
+                      trailing: ElevatedButton(
+                        onPressed: () {
+                          // Reset current activity if callback provided, otherwise navigate home
+                          if (widget.onResetActivity != null) {
+                            widget.onResetActivity!();
+                            Navigator.pop(context); // Close settings
+                          } else {
+                            Navigator.popUntil(context, (route) => route.isFirst);
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade400,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('RESET'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
                 // Music section
                 _buildSection(
                   title: 'Music',

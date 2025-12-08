@@ -112,15 +112,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          // You can replace this with an AssetImage once you add a PNG.
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF003366),
-              Color(0xFF006699),
-              Color(0xFF001122),
-            ],
+          image: DecorationImage(
+            image: AssetImage('assets/HomeScreen_Background.png'),
+            fit: BoxFit.cover,
           ),
         ),
         child: SafeArea(

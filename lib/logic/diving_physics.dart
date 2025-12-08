@@ -35,7 +35,7 @@ class DivingState {
     required this.lungVolumeLiters,
     this.surfaceLungVolumeLiters = 6.0,
     this.oxygenTankPercent = 100.0,
-    this.safeLungVolumeMax = 8.0,
+    this.safeLungVolumeMax = 5.5, // Safe limit below max 6L at surface
   }) : pressureAtm = _pressureForDepth(depthMeters);
 
   /// Recalculate ambient pressure based on depth.
@@ -54,12 +54,13 @@ class DivingState {
 
     // Boyle's Law: P1 * V1 = P2 * V2  ->  V2 = (P1 * V1) / P2
     final newVolume = (oldPressure * lungVolumeLiters) / pressureAtm;
-    lungVolumeLiters = newVolume.clamp(1.0, 10.0);
+    // Clamp between 2L (deepest) and 6L (surface) for realistic values
+    lungVolumeLiters = newVolume.clamp(2.0, 6.0);
   }
 
   /// Manually exhale some air. This reduces lung volume and saves a bit of oxygen.
   void exhale({double liters = 0.5}) {
-    lungVolumeLiters = (lungVolumeLiters - liters).clamp(1.0, 10.0);
+    lungVolumeLiters = (lungVolumeLiters - liters).clamp(2.0, 6.0);
     // Exhaling conserves a tiny bit of tank usage in this toy model.
     oxygenTankPercent = (oxygenTankPercent + 0.1).clamp(0.0, 100.0);
   }
