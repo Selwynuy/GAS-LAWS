@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:scuba_gas_laws_game/screens/boyles_law_activity.dart';
 import 'package:scuba_gas_laws_game/screens/scuba_boyles_law_activity/scuba_boyles_law_activity.dart';
 import 'package:scuba_gas_laws_game/screens/settings_screen.dart';
+import 'package:scuba_gas_laws_game/screens/drag_drop_quiz_screen.dart';
 
 /// Screen for selecting which Boyle's Law activity to explore.
 class BoylesLawActivitiesScreen extends StatelessWidget {
@@ -129,9 +130,9 @@ class BoylesLawActivitiesScreen extends StatelessWidget {
                             title: "Drag and Drop Quiz",
                             icon: Icons.quiz,
                             onPressed: () {
-                              // TODO: Navigate to drag and drop quiz screen
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Drag and Drop Quiz coming soon!')),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const DragDropQuizScreen()),
                               );
                             },
                           ),
