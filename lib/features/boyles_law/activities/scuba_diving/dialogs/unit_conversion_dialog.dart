@@ -89,7 +89,7 @@ class _UnitConversionDialogState extends State<UnitConversionDialog> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<dynamic>(
-            value: _selectedUnit,
+            initialValue: _selectedUnit,
             decoration: const InputDecoration(
               labelText: 'Unit',
               border: OutlineInputBorder(),

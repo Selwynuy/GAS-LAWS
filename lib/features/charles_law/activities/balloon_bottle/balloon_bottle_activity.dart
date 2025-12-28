@@ -363,7 +363,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                           Positioned(
                             left: _bottlePosition.dx,
                             top: _bottlePosition.dy,
-                            child: _BottleWidget(),
+                            child: const _BottleWidget(),
                           ),
 
                         // Balloon on bottle
@@ -524,7 +524,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
               // Instructions and info panel
               Container(
                 padding: const EdgeInsets.all(12.0),
-                color: Colors.white.withOpacity(0.95),
+                color: Colors.white.withValues(alpha: 0.95),
                 child: Column(
                   children: [
                     Text(
@@ -658,7 +658,7 @@ class _ItemShowcasePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300),
       ),
@@ -706,7 +706,7 @@ class _ItemShowcasePanel extends StatelessWidget {
                           border: Border.all(color: Colors.blue.shade400, width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 8,
                               offset: const Offset(2, 2),
                             ),
@@ -823,7 +823,7 @@ class _CupPainter extends CustomPainter {
     if (hasHotWater) {
       final waterPaint = Paint()
         ..style = PaintingStyle.fill
-        ..color = Colors.orange.shade200.withOpacity(0.7);
+        ..color = Colors.orange.shade200.withValues(alpha: 0.7);
 
       final waterPath = Path()
         ..moveTo(size.width * 0.25, size.height * 0.5)
@@ -874,7 +874,7 @@ class _BottlePainter extends CustomPainter {
     // Glass reflection
     final reflectionPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = Colors.white.withOpacity(0.3);
+      ..color = Colors.white.withValues(alpha: 0.3);
 
     canvas.drawRect(
       Rect.fromLTWH(size.width * 0.35, size.height * 0.3, size.width * 0.2, size.height * 0.4),
@@ -934,7 +934,7 @@ class _BalloonPainter extends CustomPainter {
     // Highlight
     final highlightPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = Colors.white.withOpacity(0.5);
+      ..color = Colors.white.withValues(alpha: 0.5);
 
     canvas.drawOval(
       Rect.fromCenter(
@@ -989,7 +989,7 @@ class _ContainerPainter extends CustomPainter {
     if (hasColdWater) {
       final waterPaint = Paint()
         ..style = PaintingStyle.fill
-        ..color = Colors.blue.shade200.withOpacity(0.7);
+        ..color = Colors.blue.shade200.withValues(alpha: 0.7);
 
       final waterRect = Rect.fromLTWH(
         size.width * 0.1,
@@ -1034,7 +1034,7 @@ class _SteamPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = Colors.white.withOpacity(0.6 - progress * 0.4);
+      ..color = Colors.white.withValues(alpha: 0.6 - progress * 0.4);
 
     final offsetY = progress * size.height;
 
@@ -1071,11 +1071,11 @@ class _DropZone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DragTarget<String>(
-      onAccept: (itemId) {
+      onAcceptWithDetails: (itemId) {
         final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
         if (renderBox != null) {
           final position = renderBox.localToGlobal(Offset.zero);
-          onAccept(itemId, position);
+          onAccept(itemId.data, position);
         }
       },
       builder: (context, candidateData, rejectedData) {
@@ -1085,8 +1085,8 @@ class _DropZone extends StatelessWidget {
           height: height,
           decoration: BoxDecoration(
             color: isHighlighted
-                ? Colors.green.shade100.withOpacity(0.5)
-                : Colors.blue.shade50.withOpacity(0.3),
+                ? Colors.green.shade100.withValues(alpha: 0.5)
+                : Colors.blue.shade50.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isHighlighted

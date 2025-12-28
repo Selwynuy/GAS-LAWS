@@ -17,7 +17,7 @@ class InfoPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

@@ -142,7 +142,7 @@ class _QuizUnlockDialogState extends State<QuizUnlockDialog> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? buttonColor : buttonColor.withOpacity(0.7),
+                  color: isSelected ? buttonColor : buttonColor.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isSelected ? Colors.white : Colors.transparent,
@@ -151,7 +151,7 @@ class _QuizUnlockDialogState extends State<QuizUnlockDialog> {
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: buttonColor.withOpacity(0.5),
+                            color: buttonColor.withValues(alpha: 0.5),
                             blurRadius: 8,
                             spreadRadius: 2,
                           ),
@@ -255,27 +255,25 @@ class _QuizUnlockDialogState extends State<QuizUnlockDialog> {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(
-          Icons.cancel,
-          color: Colors.red,
-          size: 64,
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Incorrect answer. Please try again!',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            shadows: [
-              Shadow(
-                offset: Offset(2, 2),
-                blurRadius: 4,
-                color: Colors.black54,
-              ),
-            ],
+        const SizedBox(height: 205),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: const Text(
+            'Incorrect answer. Please try again!',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              shadows: [
+                Shadow(
+                  offset: Offset(2, 2),
+                  blurRadius: 4,
+                  color: Colors.black54,
+                ),
+              ],
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         SizedBox(

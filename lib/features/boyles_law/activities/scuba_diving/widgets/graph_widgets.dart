@@ -66,7 +66,7 @@ class _SmallGraphPainter extends CustomPainter {
       axisPaint,
     );
     canvas.drawLine(
-      Offset(padding, padding),
+      const Offset(padding, padding),
       Offset(padding, size.height - padding),
       axisPaint,
     );
@@ -98,7 +98,7 @@ class _SmallGraphPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(padding, 0));
+    textPainter.paint(canvas, const Offset(padding, 0));
 
     final volumePainter = TextPainter(
       text: TextSpan(text: 'VOLUME (L)', style: textStyle),
@@ -157,10 +157,10 @@ class _GraphPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) return;
 
-    final double leftPadding = 50;
-    final double bottomPadding = 50;
-    final double rightPadding = 20;
-    final double topPadding = 20;
+    const double leftPadding = 50;
+    const double bottomPadding = 50;
+    const double rightPadding = 20;
+    const double topPadding = 20;
 
     final double graphWidth = size.width - leftPadding - rightPadding;
     final double graphHeight = size.height - topPadding - bottomPadding;

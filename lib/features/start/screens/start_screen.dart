@@ -94,7 +94,7 @@ class _StartButtonState extends State<_StartButton>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.lightBlue.withOpacity(_glowAnimation.value * 0.8),
+                color: Colors.lightBlue.withValues(alpha: _glowAnimation.value * 0.8),
                 blurRadius: 20 * _glowAnimation.value,
                 spreadRadius: 5 * _glowAnimation.value,
               ),

@@ -126,7 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         });
                         await _soundService.setMusicEnabled(value);
                       },
-                      activeColor: colorScheme.primary,
+                      activeThumbColor: colorScheme.primary,
                     ),
                     if (_musicEnabled) ...[
                       const SizedBox(height: 8),
@@ -173,7 +173,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         });
                         await _soundService.setSoundEffectsEnabled(value);
                       },
-                      activeColor: colorScheme.primary,
+                      activeThumbColor: colorScheme.primary,
                     ),
                     if (_soundEffectsEnabled) ...[
                       const SizedBox(height: 8),
@@ -220,7 +220,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         });
                         await _settingsService.setAnimationsEnabled(value);
                       },
-                      activeColor: colorScheme.primary,
+                      activeThumbColor: colorScheme.primary,
                     ),
                   ],
                 ),
@@ -230,16 +230,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'About',
                   icon: Icons.info,
                   children: [
-                    ListTile(
-                      title: const Text(
+                    const ListTile(
+                      title: Text(
                         'Boyle\'s Law Lab',
                         style: TextStyle(color: Colors.white),
                       ),
-                      subtitle: const Text(
+                      subtitle: Text(
                         'An educational simulation of scuba diving gas laws',
                         style: TextStyle(color: Colors.white70),
                       ),
-                      leading: const Icon(Icons.science, color: Colors.white70),
+                      leading: Icon(Icons.science, color: Colors.white70),
                     ),
                   ],
                 ),
@@ -258,10 +258,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.2),
+          color: Colors.white.withValues(alpha: 0.2),
           width: 1,
         ),
       ),

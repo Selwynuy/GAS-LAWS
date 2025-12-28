@@ -72,7 +72,7 @@ class _ActionButtonState extends State<ActionButton>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: widget.color.withOpacity(widget.isPrimary ? 0.8 : 0.5),
+                color: widget.color.withValues(alpha: widget.isPrimary ? 0.8 : 0.5),
                 blurRadius: widget.isPrimary ? 20 : 15,
                 spreadRadius: widget.isPrimary ? 4 : 3,
               ),
@@ -129,7 +129,7 @@ class FeatureButton extends StatelessWidget {
       icon: Icon(icon),
       label: Text(label),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white.withOpacity(0.9),
+        backgroundColor: Colors.white.withValues(alpha: 0.9),
         foregroundColor: Colors.blue.shade900,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),

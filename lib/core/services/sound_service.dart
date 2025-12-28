@@ -124,7 +124,7 @@ class SoundService {
     if (!_settingsService.isMusicEnabled) return;
     try {
       // Check current state - if not playing, start fresh instead of resume
-      final state = await _backgroundPlayer!.state;
+      final state = _backgroundPlayer!.state;
       if (state == PlayerState.playing) {
         // Already playing, nothing to do
         _isBackgroundMusicPlaying = true;
@@ -169,7 +169,7 @@ class SoundService {
       // Check after a short delay to allow touch sound to start
       Future.delayed(const Duration(milliseconds: 50), () async {
         if (_backgroundPlayer != null && _settingsService.isMusicEnabled) {
-          final bgState = await _backgroundPlayer!.state;
+          final bgState = _backgroundPlayer!.state;
           if (bgState != PlayerState.playing && _isBackgroundMusicPlaying) {
             debugPrint('Background music stopped after touch sound, restarting...');
             await playBackgroundMusic();

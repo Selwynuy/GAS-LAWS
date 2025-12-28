@@ -1,4 +1,5 @@
 /// Unit conversion utilities for volume, pressure, and temperature.
+library;
 
 enum VolumeUnit {
   liters('L'),

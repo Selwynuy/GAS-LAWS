@@ -46,8 +46,8 @@ class _LungsWidgetState extends State<LungsWidget> {
       builder: (context, volume, child) {
         // Interpolate size based on normalizedVolume
         // Min size: 40% of base, Max size: 85% of base (keeps lungs within diver's chest)
-        final double minScale = 0.4;
-        final double maxScale = 0.85;
+        const double minScale = 0.4;
+        const double maxScale = 0.85;
         final double scale = minScale + (maxScale - minScale) * volume.clamp(0.0, 1.0);
         
         return Transform.scale(

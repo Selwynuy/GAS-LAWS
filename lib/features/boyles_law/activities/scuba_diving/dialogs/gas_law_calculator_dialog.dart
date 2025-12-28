@@ -22,7 +22,9 @@ class _GasLawCalculatorDialogState extends State<GasLawCalculatorDialog> {
 
   @override
   void dispose() {
-    _controllers.values.forEach((c) => c.dispose());
+    for (var c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -147,7 +149,7 @@ class _GasLawCalculatorDialogState extends State<GasLawCalculatorDialog> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedLaw,
+                initialValue: _selectedLaw,
                 decoration: const InputDecoration(
                   labelText: 'Select Law',
                   border: OutlineInputBorder(),

@@ -32,7 +32,7 @@ class CharlesLawActivitiesScreen extends StatelessWidget {
                       icon: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
@@ -45,7 +45,7 @@ class CharlesLawActivitiesScreen extends StatelessWidget {
                       icon: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.help_outline, color: Colors.white, size: 24),
@@ -59,7 +59,7 @@ class CharlesLawActivitiesScreen extends StatelessWidget {
                       icon: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(Icons.settings, color: Colors.white, size: 24),
@@ -80,7 +80,7 @@ class CharlesLawActivitiesScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
@@ -198,7 +198,7 @@ class _ActivityButtonState extends State<_ActivityButton>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.lightBlue.withOpacity(_glowAnimation.value * 0.8),
+                color: Colors.lightBlue.withValues(alpha: _glowAnimation.value * 0.8),
                 blurRadius: 20 * _glowAnimation.value,
                 spreadRadius: 5 * _glowAnimation.value,
               ),

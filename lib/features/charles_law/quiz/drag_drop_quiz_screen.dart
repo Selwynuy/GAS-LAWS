@@ -122,11 +122,11 @@ class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
     if (!_isSubmitted) return Colors.transparent;
     final userAnswer = _userAnswers[blankNumber];
     final correctAnswer = _correctAnswers[blankNumber];
-    if (userAnswer == null) return Colors.orange.withOpacity(0.3);
+    if (userAnswer == null) return Colors.orange.withValues(alpha: 0.3);
     if (userAnswer.trim().toLowerCase() == correctAnswer?.trim().toLowerCase()) {
-      return Colors.green.withOpacity(0.3);
+      return Colors.green.withValues(alpha: 0.3);
     } else {
-      return Colors.red.withOpacity(0.3);
+      return Colors.red.withValues(alpha: 0.3);
     }
   }
 
@@ -156,7 +156,7 @@ class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
                       icon: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
@@ -166,7 +166,7 @@ class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Text(
@@ -188,7 +188,7 @@ class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
@@ -286,14 +286,14 @@ class _WordBankWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -338,7 +338,7 @@ class _WordBankWidget extends StatelessWidget {
                   children: [
                     for (int i = 3; i < 6; i++)
                       Padding(
-                        padding: EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: _DraggableWord(
                           word: wordBank[i],
                           isAvailable: !isSubmitted,
@@ -404,7 +404,7 @@ class _DraggableWord extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(2, 2),
               ),
@@ -511,7 +511,7 @@ class _FillInBlanksWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -622,7 +622,7 @@ class _BlankBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DragTarget<String>(
-      onAccept: (word) => onWordDropped(blankNumber, word),
+      onAcceptWithDetails: (word) => onWordDropped(blankNumber, word.data),
       builder: (context, candidateData, rejectedData) {
         final isHighlighted = candidateData.isNotEmpty;
         final backgroundColor = getBlankColor(blankNumber);
@@ -673,7 +673,7 @@ class _BlankBox extends StatelessWidget {
                 Flexible(
                   child: Text(
                     userAnswer!,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 12,
                       color: Colors.black87,
                       fontWeight: FontWeight.w600,
@@ -734,13 +734,13 @@ class _ResultsWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.blue.shade300, width: 2),
       ),
       child: Column(
         children: [
-          Text(
+          const Text(
             'Results',
             style: TextStyle(
               fontSize: 24,
@@ -760,7 +760,7 @@ class _ResultsWidget extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${percentage.toStringAsFixed(1)}%',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 20,
               color: Colors.black87,
             ),

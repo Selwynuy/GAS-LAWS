@@ -9,7 +9,7 @@ class SyringeTestActivity extends StatefulWidget {
 }
 
 class _SyringeTestActivityState extends State<SyringeTestActivity> with SingleTickerProviderStateMixin {
-  double _maxVolume = 60.0;
+  final double _maxVolume = 60.0;
   double _currentVolume = 30.0;
   double _plungerPosition = 0.5;
   
@@ -196,8 +196,8 @@ class _SyringeTestActivityState extends State<SyringeTestActivity> with SingleTi
   }
 
   void _onBalloonDragEnd(DragEndDetails details) {
-    final syringeOpeningX = 100.0;
-    final syringeOpeningY = 450.0;
+    const syringeOpeningX = 100.0;
+    const syringeOpeningY = 450.0;
 
     if ((_balloonPosition.dx - syringeOpeningX).abs() < 100 &&
         (_balloonPosition.dy - syringeOpeningY).abs() < 100) {
@@ -367,7 +367,7 @@ class _SyringeTestActivityState extends State<SyringeTestActivity> with SingleTi
               ),
               Container(
                 padding: const EdgeInsets.all(12.0),
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 child: Column(
                       children: [
                         Text(
@@ -511,9 +511,9 @@ class _VerticalSyringeWidget extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(0.7),
-                      Colors.blue.shade50.withOpacity(0.5),
-                      Colors.white.withOpacity(0.6),
+                      Colors.white.withValues(alpha: 0.7),
+                      Colors.blue.shade50.withValues(alpha: 0.5),
+                      Colors.white.withValues(alpha: 0.6),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(8),
@@ -543,7 +543,7 @@ class _VerticalSyringeWidget extends StatelessWidget {
                 child: LayoutBuilder(
                   builder: (context, balloonConstraints) {
                     const double padding = 2.0;
-                    final double maxBalloonWidth = innerTubeWidth - (padding * 2);
+                    const double maxBalloonWidth = innerTubeWidth - (padding * 2);
                     final double balloonWidth = maxBalloonWidth * balloonSize.clamp(0.5, 2.5);
                     final double balloonHeight = balloonWidth / 0.833;
                     
@@ -625,7 +625,7 @@ class _VerticalSyringeWidget extends StatelessWidget {
                               border: Border.all(color: Colors.black, width: 1),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.7),
+                                  color: Colors.black.withValues(alpha: 0.7),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
@@ -658,12 +658,12 @@ class _VerticalSyringeWidget extends StatelessWidget {
                           border: Border.all(color: Colors.grey.shade500, width: 0.5),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(0.6),
+                              color: Colors.white.withValues(alpha: 0.6),
                               blurRadius: 2,
                               offset: const Offset(-1, 0),
                             ),
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 4,
                               offset: const Offset(1, 2),
                             ),
@@ -697,12 +697,12 @@ class _VerticalSyringeWidget extends StatelessWidget {
                               border: Border.all(color: Colors.grey.shade600, width: 1),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.white.withOpacity(0.6),
+                                  color: Colors.white.withValues(alpha: 0.6),
                                   blurRadius: 3,
                                   offset: const Offset(0, -2),
                                 ),
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   blurRadius: 4,
                                   offset: const Offset(0, 3),
                                 ),
@@ -761,7 +761,7 @@ class _VerticalSyringeWidget extends StatelessWidget {
                 border: Border.all(color: Colors.grey.shade800, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -790,7 +790,7 @@ class _VerticalSyringeWidget extends StatelessWidget {
                 border: Border.all(color: Colors.grey.shade800, width: 2.5),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     blurRadius: 6,
                     offset: const Offset(0, -3),
           ),
@@ -889,7 +889,7 @@ class _BalloonPainter extends CustomPainter {
       height: size.height * 0.3,
     ));
     paint.shader = null;
-    paint.color = Colors.white.withOpacity(0.4);
+    paint.color = Colors.white.withValues(alpha: 0.4);
     canvas.drawPath(highlightPath, paint);
 
     paint.color = isAtMaxPressure ? Colors.red.shade900 : colorSwatch.shade800;
@@ -902,7 +902,7 @@ class _BalloonPainter extends CustomPainter {
     canvas.drawCircle(Offset(centerX, size.height - 6), 3, paint);
     paint.style = PaintingStyle.stroke;
     paint.strokeWidth = 1;
-    paint.color = Colors.black.withOpacity(0.3);
+    paint.color = Colors.black.withValues(alpha: 0.3);
     canvas.drawCircle(Offset(centerX, size.height - 6), 3, paint);
   }
 
@@ -978,7 +978,7 @@ class _RealisticSyringePainter extends CustomPainter {
     paint.strokeWidth = 2.5;
     canvas.drawPath(bodyPath, paint);
 
-    final flangeHeight = 25.0;
+    const flangeHeight = 25.0;
     final flangeY = openingHeight + 5;
 
     final leftFlangePath = Path();
@@ -1013,7 +1013,7 @@ class _RealisticSyringePainter extends CustomPainter {
     canvas.drawPath(rightFlangePath, paint);
 
     paint.shader = null;
-    paint.color = Colors.black.withOpacity(0.1);
+    paint.color = Colors.black.withValues(alpha: 0.1);
     paint.style = PaintingStyle.fill;
     final shadowPath = Path();
     shadowPath.addRRect(RRect.fromRectAndRadius(
@@ -1022,7 +1022,7 @@ class _RealisticSyringePainter extends CustomPainter {
     ));
     canvas.drawPath(shadowPath, paint);
 
-    paint.color = Colors.white.withOpacity(0.4);
+    paint.color = Colors.white.withValues(alpha: 0.4);
     final highlightPath = Path();
     highlightPath.addRRect(RRect.fromRectAndRadius(
       Rect.fromLTWH(5, openingHeight + 5, size.width - 10, 15),
@@ -1058,7 +1058,7 @@ class _SyringeBarrelPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final usableHeight = size.height - openingHeight;
-    final numMarkings = 6;
+    const numMarkings = 6;
     
     for (int i = 0; i <= numMarkings; i++) {
       final y = openingHeight + (i * usableHeight / numMarkings);
@@ -1101,7 +1101,7 @@ class _SyringeBarrelPainter extends CustomPainter {
     }
 
     final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
+      ..color = Colors.white.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
     
     final highlightPath = Path()
@@ -1140,12 +1140,12 @@ class _PressureVolumeGraph extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85),
+        color: Colors.white.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 8,
             offset: const Offset(0, 4),
@@ -1211,10 +1211,10 @@ class _GraphPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double leftPadding = 30;
-    final double bottomPadding = 20;
-    final double rightPadding = 10;
-    final double topPadding = 10;
+    const double leftPadding = 30;
+    const double bottomPadding = 20;
+    const double rightPadding = 10;
+    const double topPadding = 10;
 
     final double graphWidth = size.width - leftPadding - rightPadding;
     final double graphHeight = size.height - topPadding - bottomPadding;

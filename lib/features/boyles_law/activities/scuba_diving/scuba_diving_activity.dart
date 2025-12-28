@@ -209,7 +209,7 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
@@ -223,7 +223,7 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.settings, color: Colors.white, size: 24),
@@ -284,22 +284,22 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.red.withOpacity(0.8),
+                                color: Colors.red.withValues(alpha: 0.8),
                                 blurRadius: 15,
                                 spreadRadius: 3,
                               ),
                             ],
                           ),
-                          child: Row(
+                          child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.warning_amber_rounded,
                                 color: Colors.yellow,
                                 size: 24,
                               ),
-                              const SizedBox(width: 8),
-                              const Column(
+                              SizedBox(width: 8),
+                              Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -349,7 +349,7 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.shade700.withOpacity(0.8),
+                                    color: Colors.blue.shade700.withValues(alpha: 0.8),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
@@ -385,7 +385,7 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
                                     padding: const EdgeInsets.all(12),
                                     height: 150,
                                     decoration: BoxDecoration(
-                                      color: Colors.blue.shade700.withOpacity(0.8),
+                                      color: Colors.blue.shade700.withValues(alpha: 0.8),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Column(
@@ -545,13 +545,13 @@ class _PressureVolumeGraph extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
+          const Text(
             'Pressure-Volume Graph',
             style: TextStyle(
               fontSize: 12,
@@ -563,7 +563,7 @@ class _PressureVolumeGraph extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                RotatedBox(
+                const RotatedBox(
                   quarterTurns: -1,
                   child: Text(
                     'Pressure (atm)',
@@ -585,7 +585,7 @@ class _PressureVolumeGraph extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'Volume (L)',
             style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w500),
           ),
@@ -608,10 +608,10 @@ class _GraphPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double leftPadding = 25;
-    final double bottomPadding = 15;
-    final double rightPadding = 8;
-    final double topPadding = 8;
+    const double leftPadding = 25;
+    const double bottomPadding = 15;
+    const double rightPadding = 8;
+    const double topPadding = 8;
 
     final double graphWidth = size.width - leftPadding - rightPadding;
     final double graphHeight = size.height - topPadding - bottomPadding;
@@ -629,18 +629,18 @@ class _GraphPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final axisPaint = Paint()
-      ..color = Colors.white.withOpacity(0.7)
+      ..color = Colors.white.withValues(alpha: 0.7)
       ..strokeWidth = 1.5;
 
     canvas.drawLine(origin, Offset(origin.dx + graphWidth, origin.dy), axisPaint);
     canvas.drawLine(origin, Offset(origin.dx, origin.dy - graphHeight), axisPaint);
 
     final gridPaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
+      ..color = Colors.white.withValues(alpha: 0.3)
       ..strokeWidth = 1.0;
     
     final textStyle = TextStyle(
-      color: Colors.white.withOpacity(0.9),
+      color: Colors.white.withValues(alpha: 0.9),
       fontSize: 8,
     );
 
@@ -756,8 +756,8 @@ class _CurvedGaugePainter extends CustomPainter {
     );
     
     // Full arc path (180 degrees, from left to right, curving upward)
-    final startAngle = math.pi; // Start at left (180°)
-    final sweepAngle = math.pi; // Full semicircle to right (0°)
+    const startAngle = math.pi; // Start at left (180°)
+    const sweepAngle = math.pi; // Full semicircle to right (0°)
     
     // Draw the background arc (dark gray) - thinner stroke
     final backgroundPaint = Paint()
@@ -790,7 +790,7 @@ class _CurvedGaugePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round;
       
-      final redStartAngle = startAngle + math.pi * 0.5;
+      const redStartAngle = math.pi * 1.5;
       final redSweep = percentageSweep - math.pi * 0.5;
       if (redSweep > 0) {
         canvas.drawArc(rect, redStartAngle, redSweep, false, redPaint);
