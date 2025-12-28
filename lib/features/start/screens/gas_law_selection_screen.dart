@@ -27,7 +27,7 @@ class GasLawSelectionScreen extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Settings button
+                    // Home button
                     IconButton(
                       icon: Container(
                         padding: const EdgeInsets.all(8),
@@ -35,13 +35,10 @@ class GasLawSelectionScreen extends StatelessWidget {
                           color: Colors.black.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.settings, color: Colors.white, size: 24),
+                        child: const Icon(Icons.home, color: Colors.white, size: 24),
                       ),
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                        );
+                        Navigator.popUntil(context, (route) => route.isFirst);
                       },
                     ),
                     // Info/Help button
@@ -58,7 +55,7 @@ class GasLawSelectionScreen extends StatelessWidget {
                         // TODO: Show info dialog
                       },
                     ),
-                    // Home button
+                    // Settings button
                     IconButton(
                       icon: Container(
                         padding: const EdgeInsets.all(8),
@@ -66,10 +63,13 @@ class GasLawSelectionScreen extends StatelessWidget {
                           color: Colors.black.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.home, color: Colors.white, size: 24),
+                        child: const Icon(Icons.settings, color: Colors.white, size: 24),
                       ),
                       onPressed: () {
-                        Navigator.popUntil(context, (route) => route.isFirst);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                        );
                       },
                     ),
                   ],

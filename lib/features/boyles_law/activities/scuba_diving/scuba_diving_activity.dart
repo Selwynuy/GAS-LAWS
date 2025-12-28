@@ -212,10 +212,10 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.home, color: Colors.white, size: 24),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
           ),
           onPressed: () {
-            Navigator.popUntil(context, (route) => route.isFirst);
+            Navigator.pop(context);
           },
         ),
         actions: [

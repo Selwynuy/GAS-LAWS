@@ -31,6 +31,10 @@ class _SyringeTestActivityState extends State<SyringeTestActivity> with SingleTi
 
   AnimationController? _balloonReleaseController;
   Animation<double>? _balloonReleaseAnimation;
+  
+  // Performance optimization: throttle setState during dragging
+  DateTime? _lastUpdateTime;
+  static const _minUpdateInterval = Duration(milliseconds: 16); // ~60fps max
 
   @override
   void initState() {
@@ -65,6 +69,13 @@ class _SyringeTestActivityState extends State<SyringeTestActivity> with SingleTi
   }
 
   void _onPlungerDragUpdate(DragUpdateDetails details) {
+    // Throttle updates to prevent excessive rebuilds
+    final now = DateTime.now();
+    if (_lastUpdateTime != null && now.difference(_lastUpdateTime!) < _minUpdateInterval) {
+      return;
+    }
+    _lastUpdateTime = now;
+    
     setState(() {
       final delta = -details.delta.dy / 300;
       double newPlungerPosition = (_plungerPosition + delta).clamp(0.0, 1.0);
@@ -118,6 +129,8 @@ class _SyringeTestActivityState extends State<SyringeTestActivity> with SingleTi
   }
 
   void _onPlungerDragEnd(DragEndDetails details) {
+    _lastUpdateTime = null;
+    
     if (!_isSealed && _balloonInSyringe && _balloonReleaseController != null) {
       final double currentSize = _balloonSize;
       
@@ -313,25 +326,29 @@ class _SyringeTestActivityState extends State<SyringeTestActivity> with SingleTi
                         top: 20,
                         bottom: 20,
                         width: 120,
-                        child: _VerticalSyringeWidget(
-                              plungerPosition: _plungerPosition,
-                              isSealed: _isSealed,
-                              balloonInSyringe: _balloonInSyringe,
-                              balloonSize: _balloonSize,
-                          isAtMaxPressure: _isAtMaxPressure,
-                              onPlungerDrag: _onPlungerDragUpdate,
-                              onPlungerDragEnd: _onPlungerDragEnd,
-                            ),
+                        child: RepaintBoundary(
+                          child: _VerticalSyringeWidget(
+                                plungerPosition: _plungerPosition,
+                                isSealed: _isSealed,
+                                balloonInSyringe: _balloonInSyringe,
+                                balloonSize: _balloonSize,
+                            isAtMaxPressure: _isAtMaxPressure,
+                                onPlungerDrag: _onPlungerDragUpdate,
+                                onPlungerDragEnd: _onPlungerDragEnd,
+                              ),
+                        ),
                           ),
                             Positioned(
                         top: 20,
                         right: 20,
                         width: constraints.maxWidth - 180,
                         height: 250,
-                        child: _PressureVolumeGraph(
-                          points: _graphPoints,
-                          currentVolume: _currentVolume,
-                          currentPressure: _pressure,
+                        child: RepaintBoundary(
+                          child: _PressureVolumeGraph(
+                            points: _graphPoints,
+                            currentVolume: _currentVolume,
+                            currentPressure: _pressure,
+                          ),
                         ),
                       ),
                       if (!_balloonInSyringe)
@@ -485,29 +502,31 @@ class _VerticalSyringeWidget extends StatelessWidget {
           Positioned(
             bottom: openingHeight,
             left: (constraints.maxWidth - innerTubeWidth) / 2,
-            child: Container(
-              width: innerTubeWidth,
-              height: syringeBodyHeight - openingHeight - plungerHeadHeight,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.7),
-                    Colors.blue.shade50.withOpacity(0.5),
-                    Colors.white.withOpacity(0.6),
-                  ],
+            child: RepaintBoundary(
+              child: Container(
+                width: innerTubeWidth,
+                height: syringeBodyHeight - openingHeight - plungerHeadHeight,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.7),
+                      Colors.blue.shade50.withOpacity(0.5),
+                      Colors.white.withOpacity(0.6),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.grey.shade600,
+                    width: 2,
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.grey.shade600,
-                  width: 2,
-                ),
-              ),
-              child: CustomPaint(
-                painter: _SyringeBarrelPainter(
-                  syringeHeight: syringeBodyHeight - openingHeight - plungerHeadHeight,
-                  openingHeight: 0,
+                child: CustomPaint(
+                  painter: _SyringeBarrelPainter(
+                    syringeHeight: syringeBodyHeight - openingHeight - plungerHeadHeight,
+                    openingHeight: 0,
+                  ),
                 ),
               ),
             ),
@@ -888,7 +907,13 @@ class _BalloonPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    if (oldDelegate is _BalloonPainter) {
+      return oldDelegate.baseColor != baseColor ||
+          oldDelegate.isAtMaxPressure != isAtMaxPressure;
+    }
+    return true;
+  }
 }
 
 class _RealisticSyringePainter extends CustomPainter {
@@ -1090,7 +1115,13 @@ class _SyringeBarrelPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    if (oldDelegate is _SyringeBarrelPainter) {
+      return oldDelegate.syringeHeight != syringeHeight ||
+          oldDelegate.openingHeight != openingHeight;
+    }
+    return true;
+  }
 }
 
 class _PressureVolumeGraph extends StatelessWidget {
@@ -1273,5 +1304,15 @@ class _GraphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    if (oldDelegate is _GraphPainter) {
+      return oldDelegate.points.length != points.length ||
+          oldDelegate.currentVolume != currentVolume ||
+          oldDelegate.currentPressure != currentPressure ||
+          (points.isNotEmpty && oldDelegate.points.isNotEmpty &&
+           (oldDelegate.points.last.dx != points.last.dx ||
+            oldDelegate.points.last.dy != points.last.dy));
+    }
+    return true;
+  }
 }

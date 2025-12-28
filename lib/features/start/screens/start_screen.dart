@@ -1,9 +1,27 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/sound_service.dart';
 import 'gas_law_selection_screen.dart';
 
 /// Starting screen with title and start button.
-class StartScreen extends StatelessWidget {
+class StartScreen extends StatefulWidget {
   const StartScreen({super.key});
+
+  @override
+  State<StartScreen> createState() => _StartScreenState();
+}
+
+class _StartScreenState extends State<StartScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Ensure music is playing when on home screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final soundService = SoundService();
+      if (soundService.isMusicEnabled && !soundService.isBackgroundMusicPlaying) {
+        soundService.playBackgroundMusic();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

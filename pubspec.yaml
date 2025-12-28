@@ -16,6 +16,12 @@ dependencies:
 
   # Optional: for the Volume vs Pressure graph.
   fl_chart: ^0.69.0
+  
+  # Audio playback
+  audioplayers: ^6.0.0
+  
+  # Settings persistence
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -30,5 +36,8 @@ flutter:
     - assets/Scuba_Diver.png
     - assets/Lungs2.png
     - assets/HomeScreen_Background.png
+    - assets/Succeed.png
+    - assets/Locked.png
+    - assets/sounds/
 
 

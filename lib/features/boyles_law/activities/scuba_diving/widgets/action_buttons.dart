@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../../core/services/sound_service.dart';
 
 /// Action button for diver controls (Ascend, Exhale, etc.)
 class ActionButton extends StatefulWidget {
@@ -45,6 +46,7 @@ class _ActionButtonState extends State<ActionButton>
   }
 
   void _handleTapDown(TapDownDetails details) {
+    SoundService().playTouchSound();
     _controller.forward();
   }
 
@@ -120,7 +122,10 @@ class FeatureButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
-      onPressed: onPressed,
+      onPressed: () {
+        SoundService().playTouchSound();
+        onPressed();
+      },
       icon: Icon(icon),
       label: Text(label),
       style: ElevatedButton.styleFrom(

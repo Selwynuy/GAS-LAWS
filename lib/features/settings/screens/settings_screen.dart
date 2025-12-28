@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/sound_service.dart';
+import '../../../core/services/settings_service.dart';
+import '../../../features/start/screens/start_screen.dart';
+import '../../../shared/services/activity_unlock_service.dart';
 
 /// Settings screen for app configuration.
 class SettingsScreen extends StatefulWidget {
@@ -11,11 +15,31 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final SoundService _soundService = SoundService();
+  final SettingsService _settingsService = SettingsService();
+  
   bool _musicEnabled = true;
   double _musicVolume = 0.7;
   bool _soundEffectsEnabled = true;
   double _soundEffectsVolume = 0.8;
   bool _animationsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    await _settingsService.initialize();
+    setState(() {
+      _musicEnabled = _soundService.isMusicEnabled;
+      _musicVolume = _soundService.musicVolume;
+      _soundEffectsEnabled = _soundService.isSoundEffectsEnabled;
+      _soundEffectsVolume = _soundService.soundEffectsVolume;
+      _animationsEnabled = _settingsService.isAnimationsEnabled;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,22 +79,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     ListTile(
                       title: const Text(
-                        'Reset Activity',
+                        'Reset Game',
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: const Text(
-                        'Reset the diving simulation to initial state',
+                        'Return to the main menu and reset all activities',
                         style: TextStyle(color: Colors.white70),
                       ),
                       leading: const Icon(Icons.refresh, color: Colors.white70),
                       trailing: ElevatedButton(
-                        onPressed: () {
-                          // Reset current activity if callback provided, otherwise navigate home
-                          if (widget.onResetActivity != null) {
-                            widget.onResetActivity!();
-                            Navigator.pop(context); // Close settings
-                          } else {
-                            Navigator.popUntil(context, (route) => route.isFirst);
+                        onPressed: () async {
+                          // Reset all activity unlocks
+                          await ActivityUnlockService.resetAllUnlocks();
+                          // Navigate to start screen, clearing all routes
+                          if (context.mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const StartScreen()),
+                              (route) => false,
+                            );
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -94,10 +120,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(color: Colors.white),
                       ),
                       value: _musicEnabled,
-                      onChanged: (value) {
+                      onChanged: (value) async {
                         setState(() {
                           _musicEnabled = value;
                         });
+                        await _soundService.setMusicEnabled(value);
                       },
                       activeColor: colorScheme.primary,
                     ),
@@ -114,10 +141,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             Slider(
                               value: _musicVolume,
-                              onChanged: (value) {
+                              onChanged: (value) async {
                                 setState(() {
                                   _musicVolume = value;
                                 });
+                                await _soundService.setMusicVolume(value);
                               },
                               activeColor: colorScheme.primary,
                             ),
@@ -139,10 +167,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(color: Colors.white),
                       ),
                       value: _soundEffectsEnabled,
-                      onChanged: (value) {
+                      onChanged: (value) async {
                         setState(() {
                           _soundEffectsEnabled = value;
                         });
+                        await _soundService.setSoundEffectsEnabled(value);
                       },
                       activeColor: colorScheme.primary,
                     ),
@@ -159,10 +188,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             Slider(
                               value: _soundEffectsVolume,
-                              onChanged: (value) {
+                              onChanged: (value) async {
                                 setState(() {
                                   _soundEffectsVolume = value;
                                 });
+                                await _soundService.setSoundEffectsVolume(value);
                               },
                               activeColor: colorScheme.primary,
                             ),
@@ -184,10 +214,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(color: Colors.white),
                       ),
                       value: _animationsEnabled,
-                      onChanged: (value) {
+                      onChanged: (value) async {
                         setState(() {
                           _animationsEnabled = value;
                         });
+                        await _settingsService.setAnimationsEnabled(value);
                       },
                       activeColor: colorScheme.primary,
                     ),
