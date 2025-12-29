@@ -23,7 +23,7 @@ class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
     10: 'inversely',
     11: 'temperature',
     12: 'pressure',
-    13: 'P1V1= P2V2',
+    13: 'P1V1 = P2V2',
     14: 'initial pressure',
     15: 'final volume',
   };
@@ -43,7 +43,7 @@ class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
     'increased',
     'decreased',
     'inversely',
-    'P1V1= P2V2',
+    'P1V1 = P2V2',
     'initial pressure',
     'final volume',
   ];
@@ -526,7 +526,7 @@ class _FillInBlanksWidget extends StatelessWidget {
               " is held constant, the ",
               " of a given amount of gas decreases as the pressure is ",
               ". On the contrary, if the pressure that is applied is ",
-              " the gas ",
+              ", the gas ",
               " becomes larger.",
             ],
             blanks: [1, 2, 3, 4, 5, 6, 7, 8],
@@ -534,7 +534,7 @@ class _FillInBlanksWidget extends StatelessWidget {
           const SizedBox(height: 20),
           _buildParagraph(
             textParts: [
-              "Boyle's experment proved that the ",
+              "Boyle's experiment proved that the ",
               " is ",
               " proportional to the volume of gas at constant ",
               ", that is the volume decreases with the increasing ",
@@ -546,7 +546,7 @@ class _FillInBlanksWidget extends StatelessWidget {
           _buildParagraph(
             textParts: [
               "Mathematically, Boyle's law can be expressed as ",
-              " where P1 is the ",
+              ", where P1 is the ",
               " and V2 is the ",
               " of a given gas.",
             ],

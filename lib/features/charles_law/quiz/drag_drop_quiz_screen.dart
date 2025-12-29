@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Drag and Drop Quiz screen for Boyle's Law
+/// Drag and Drop Quiz screen for Charles's Law
 class DragDropQuizScreen extends StatefulWidget {
   const DragDropQuizScreen({super.key});
 
@@ -11,21 +11,21 @@ class DragDropQuizScreen extends StatefulWidget {
 class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
   // Correct answers for each blank (1-indexed)
   final Map<int, String> _correctAnswers = {
-    1: 'Robert Boyle',
-    2: 'volume',
+    1: 'directly',
+    2: 'temperature',
     3: 'pressure',
-    4: 'temperature',
-    5: 'volume',
-    6: 'increased',
-    7: 'decreased',
-    8: 'volume',
-    9: 'pressure',
-    10: 'inversely',
-    11: 'temperature',
+    4: 'Kelvin',
+    5: 'Volume',
+    6: 'directly',
+    7: 'temperature',
+    8: 'pressure',
+    9: 'increases',
+    10: 'temperature',
+    11: 'double',
     12: 'pressure',
-    13: 'P1V1= P2V2',
-    14: 'initial pressure',
-    15: 'final volume',
+    13: 'V1T1=V2T2',
+    14: 'initial volume',
+    15: 'final temperature',
   };
 
   // User's answers
@@ -36,16 +36,19 @@ class _DragDropQuizScreenState extends State<DragDropQuizScreen> {
 
   // Available words in the word bank
   final List<String> _wordBank = [
-    'Robert Boyle',
-    'volume',
+    'Jacques Charles',
+    'final temperature',
+    'Kelvin',
+    'increases',
+    'initial volume',
+    'Celsius',
+    'double',
+    'Volume',
+    'V1T1=V2T2',
+    'decrease',
     'pressure',
+    'directly',
     'temperature',
-    'increased',
-    'decreased',
-    'inversely',
-    'P1V1= P2V2',
-    'initial pressure',
-    'final volume',
   ];
 
   // Words that have been used (for tracking)
@@ -312,65 +315,17 @@ class _WordBankWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.start,
             children: [
-              // Column 1: 3 rows
-              Expanded(
-                child: Column(
-                  children: [
-                    for (int i = 0; i < 3; i++)
-                      Padding(
-                        padding: EdgeInsets.only(bottom: i < 2 ? 8 : 0),
-                        child: _DraggableWord(
-                          word: wordBank[i],
-                          isAvailable: !isSubmitted,
-                          usageCount: wordUsageCount[wordBank[i]] ?? 0,
-                        ),
-                      ),
-                  ],
+              for (int i = 0; i < wordBank.length; i++)
+                _DraggableWord(
+                  word: wordBank[i],
+                  isAvailable: !isSubmitted,
+                  usageCount: wordUsageCount[wordBank[i]] ?? 0,
                 ),
-              ),
-              const SizedBox(width: 8),
-              // Column 2: 4 rows (center column with last word)
-              Expanded(
-                child: Column(
-                  children: [
-                    for (int i = 3; i < 6; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _DraggableWord(
-                          word: wordBank[i],
-                          isAvailable: !isSubmitted,
-                          usageCount: wordUsageCount[wordBank[i]] ?? 0,
-                        ),
-                      ),
-                    // Last word (10th) in center column
-                    _DraggableWord(
-                      word: wordBank[9],
-                      isAvailable: !isSubmitted,
-                      usageCount: wordUsageCount[wordBank[9]] ?? 0,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Column 3: 3 rows
-              Expanded(
-                child: Column(
-                  children: [
-                    for (int i = 6; i < 9; i++)
-                      Padding(
-                        padding: EdgeInsets.only(bottom: i < 8 ? 8 : 0),
-                        child: _DraggableWord(
-                          word: wordBank[i],
-                          isAvailable: !isSubmitted,
-                          usageCount: wordUsageCount[wordBank[i]] ?? 0,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
             ],
           ),
         ],
@@ -435,9 +390,11 @@ class _DraggableWord extends StatelessWidget {
         ),
       ),
       child: Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(minHeight: 40),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        constraints: const BoxConstraints(
+          minHeight: 40,
+          minWidth: 80,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isAvailable ? Colors.blue.shade200 : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(8),
@@ -446,44 +403,42 @@ class _DraggableWord extends StatelessWidget {
             width: 2,
           ),
         ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: Text(
+                word,
+                style: TextStyle(
+                  color: isAvailable ? Colors.black87 : Colors.grey.shade600,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+                softWrap: true,
+                overflow: TextOverflow.visible,
+              ),
+            ),
+            if (usageCount > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade400,
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Text(
-                  word,
-                  style: TextStyle(
-                    color: isAvailable ? Colors.black87 : Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  usageCount.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (usageCount > 0) ...[
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade400,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    usageCount.toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -519,35 +474,35 @@ class _FillInBlanksWidget extends StatelessWidget {
         children: [
           _buildParagraph(
             textParts: [
-              "Using a J-shaped piece of glass tubing that was sealed on one end that ",
-              " employed, he was able to establish the relationship between ",
-              " and ",
-              ". He noticed that when ",
-              " is held constant, the ",
-              " of a given amount of gas decreases as the pressure is ",
-              ". On the contrary, if the pressure that is applied is ",
-              " the gas ",
-              " becomes larger.",
+              "Charles's Law states that the volume of a given mass of gas varies ",
+              " with the absolute ",
+              " of the gas when ",
+              " is kept constant. The absolute temperature is measured with the ",
+              " scale.",
             ],
-            blanks: [1, 2, 3, 4, 5, 6, 7, 8],
+            blanks: [1, 2, 3, 4],
           ),
           const SizedBox(height: 20),
           _buildParagraph(
             textParts: [
-              "Boyle's experment proved that the ",
+              "Charles experiment proved that the ",
               " is ",
-              " proportional to the volume of gas at constant ",
-              ", that is the volume decreases with the increasing ",
-              " and vice-versa.",
+              " proportional to the absolute ",
+              " of gas at constant ",
+              ", that is the volume ",
+              " with the increasing ",
+              " and vice versa. So if the absolute temperature is doubled, the volume will also be ",
+              ". This means that at constant ",
+              " the same gas will have a different volume when temperature is changed.",
             ],
-            blanks: [9, 10, 11, 12],
+            blanks: [5, 6, 7, 8, 9, 10, 11, 12],
           ),
           const SizedBox(height: 20),
           _buildParagraph(
             textParts: [
-              "Mathematically, Boyle's law can be expressed as ",
-              " where P1 is the ",
-              " and V2 is the ",
+              "Mathematically, Charles' law can be expressed as, ",
+              " when V1 is the ",
+              " and T2 is the ",
               " of a given gas.",
             ],
             blanks: [13, 14, 15],

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/services/sound_service.dart';
 
 /// Balloon and Bottle Experiment for Charles Law.
+/// Demonstrates: V₁/T₁ = V₂/T₂ (at constant pressure)
+/// Step-by-step interactive experiment with drag-and-drop materials.
 class BalloonBottleActivity extends StatefulWidget {
   const BalloonBottleActivity({super.key});
 
@@ -18,29 +21,36 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   bool _bottleInCup = false;
   bool _balloonOnBottle = false;
   bool _containerPlaced = false;
+  bool _coldWaterPoured = false;
   bool _bottleTransferred = false;
   bool _experimentComplete = false;
 
-  // Positions
-  Offset _cupPosition = const Offset(300, 400);
-  Offset _bottlePosition = const Offset(300, 300);
-  Offset _containerPosition = const Offset(500, 400);
+  // Positions (using relative positioning)
+  Offset? _cupPosition;
+  Offset? _bottlePosition;
+  Offset? _containerPosition;
 
   // Dragging state
   String? _draggingItem;
 
-  // Physics
-  double _temperature = 20.0; // Celsius
-  double _balloonSize = 0.3; // Normalized size (0.3 = deflated, 1.0 = fully inflated)
-  static const double _roomTemp = 20.0;
-  static const double _hotTemp = 80.0;
-  static const double _coldTemp = 5.0;
+  // Physics - using proper Charles Law calculations
+  double _temperatureCelsius = 20.0; // Room temperature
+  static const double _roomTempC = 20.0;
+  static const double _hotTempC = 80.0;
+  static const double _coldTempC = 5.0;
+  
+  // Reference values for Charles Law calculation
+  static const double _referenceTempK = 293.15; // 20°C in Kelvin
+  static const double _referenceVolume = 1.0; // Normalized reference volume
+  
+  // Current volume (calculated from Charles Law)
+  double _currentVolume = _referenceVolume;
 
-  // Animation controllers
-  late AnimationController _balloonAnimationController;
-  late AnimationController _steamAnimationController;
-  late Animation<double> _balloonSizeAnimation;
-  late Animation<double> _steamAnimation;
+
+  // Animation controller for smooth balloon size changes
+  AnimationController? _animationController;
+  Animation<double>? _volumeAnimation;
+  AnimationController? _steamAnimationController;
 
   // Item showcase positions (right side)
   final List<_ItemData> _items = [
@@ -56,87 +66,91 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   void initState() {
     super.initState();
     
-    _balloonAnimationController = AnimationController(
+    _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 800),
     );
     
     _steamAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat();
-
-    _balloonSizeAnimation = Tween<double>(begin: 0.3, end: 0.3).animate(
-      CurvedAnimation(parent: _balloonAnimationController, curve: Curves.easeInOut),
-    );
-
-    _steamAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _steamAnimationController, curve: Curves.easeInOut),
-    );
-
-    _balloonSizeAnimation.addListener(() {
-      if (mounted) {
-        setState(() {
-          _balloonSize = _balloonSizeAnimation.value;
-        });
-      }
-    });
+    
+    _volumeAnimation = Tween<double>(
+      begin: _referenceVolume,
+      end: _referenceVolume,
+    ).animate(CurvedAnimation(
+      parent: _animationController!,
+      curve: Curves.easeInOut,
+    ));
+    
+    _volumeAnimation!.addListener(_onVolumeAnimationUpdate);
+  }
+  
+  void _onVolumeAnimationUpdate() {
+    if (mounted && _volumeAnimation != null) {
+      setState(() {
+        _currentVolume = _volumeAnimation!.value;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _balloonAnimationController.dispose();
-    _steamAnimationController.dispose();
+    _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
+    _animationController?.dispose();
+    _steamAnimationController?.dispose();
     super.dispose();
   }
 
-  void _updateTemperature() {
-    double targetTemp = _roomTemp;
+  /// Convert Celsius to Kelvin
+  double _celsiusToKelvin(double celsius) => celsius + 273.15;
+
+  /// Calculate volume using Charles Law: V₁/T₁ = V₂/T₂
+  /// Therefore: V₂ = V₁ × (T₂/T₁)
+  double _calculateVolume(double temperatureCelsius) {
+    final temperatureK = _celsiusToKelvin(temperatureCelsius);
+    final newVolume = _referenceVolume * (temperatureK / _referenceTempK);
+    return newVolume.clamp(0.3, 2.0); // Clamp to reasonable visual range
+  }
+
+  /// Update temperature based on experiment state and animate volume change
+  void _updateTemperatureFromState() {
+    if (!mounted || _animationController == null) return;
     
-    if (_bottleInCup && _hotWaterPoured) {
-      targetTemp = _hotTemp;
-    } else if (_bottleTransferred && _containerPlaced) {
-      targetTemp = _coldTemp;
+    double targetTemp = _roomTempC;
+    
+    if (_bottleInCup && _hotWaterPoured && _balloonOnBottle) {
+      targetTemp = _hotTempC;
+    } else if (_bottleTransferred && _coldWaterPoured) {
+      targetTemp = _coldTempC;
     }
 
-    if ((_temperature - targetTemp).abs() > 0.1) {
+    if ((_temperatureCelsius - targetTemp).abs() > 0.1) {
       setState(() {
-        _temperature = _temperature + (targetTemp - _temperature) * 0.1;
+        _temperatureCelsius = _temperatureCelsius + (targetTemp - _temperatureCelsius) * 0.1;
       });
-    } else {
-      _temperature = targetTemp;
-    }
-
-    // Update balloon size based on temperature (Charles Law: V/T = constant)
-    // Assuming room temp (20°C = 293K) gives size 0.3, hot (80°C = 353K) gives 1.0
-    double targetSize;
-    if (_temperature <= _roomTemp) {
-      targetSize = 0.3;
-    } else if (_temperature >= _hotTemp) {
-      targetSize = 1.0;
-    } else {
-      // Linear interpolation between room temp and hot temp
-      double ratio = (_temperature - _roomTemp) / (_hotTemp - _roomTemp);
-      targetSize = 0.3 + (1.0 - 0.3) * ratio;
-    }
-
-    // For cold water, deflate further
-    if (_bottleTransferred && _temperature < _roomTemp) {
-      double coldRatio = (_temperature - _coldTemp) / (_roomTemp - _coldTemp);
-      targetSize = 0.2 + (0.3 - 0.2) * coldRatio;
-    }
-
-    if ((_balloonSize - targetSize).abs() > 0.01) {
-      _balloonSizeAnimation = Tween<double>(
-        begin: _balloonSize,
-        end: targetSize,
+      
+      final targetVolume = _calculateVolume(_temperatureCelsius);
+      
+      // Remove old listener before recreating animation
+      _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
+      
+      _volumeAnimation = Tween<double>(
+        begin: _currentVolume,
+        end: targetVolume,
       ).animate(CurvedAnimation(
-        parent: _balloonAnimationController,
+        parent: _animationController!,
         curve: Curves.easeInOut,
       ));
-      _balloonAnimationController.forward(from: 0.0);
+      
+      // Reattach listener
+      _volumeAnimation!.addListener(_onVolumeAnimationUpdate);
+      
+      _animationController!.forward(from: 0.0);
     }
   }
+
 
   void _onItemAccepted(String itemId, Offset dropPosition) {
     bool dropped = false;
@@ -144,8 +158,12 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
     switch (itemId) {
       case 'cup':
         if (_currentStep == 0) {
+          final screenSize = MediaQuery.of(context).size;
+          // Center the cup on the table
+          final centerX = screenSize.width / 2;
+          final centerY = screenSize.height * 0.4; // Center of table area
           setState(() {
-            _cupPosition = Offset(dropPosition.dx - 40, dropPosition.dy - 40);
+            _cupPosition = Offset(centerX, centerY);
             _cupPlaced = true;
             _currentStep = 1;
             _items.firstWhere((i) => i.id == 'cup').used = true;
@@ -166,42 +184,51 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
         break;
 
       case 'bottle':
-        if (_currentStep == 2 && _hotWaterPoured) {
+        if (_currentStep == 2 && _hotWaterPoured && _cupPosition != null) {
+          // Keep bottle position aligned with cup (which is already centered)
           setState(() {
-            _bottlePosition = Offset(_cupPosition.dx, _cupPosition.dy - 60);
+            _bottlePosition = Offset(_cupPosition!.dx, _cupPosition!.dy);
             _bottleInCup = true;
             _currentStep = 3;
             _items.firstWhere((i) => i.id == 'bottle').used = true;
             dropped = true;
           });
-        } else if (_currentStep == 6 && _containerPlaced && _bottleInCup) {
+          // Start temperature update after a short delay
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _updateTemperatureFromState();
+          });
+        } else if (_currentStep == 6 && _containerPlaced && _bottleInCup && _containerPosition != null) {
           setState(() {
-            _bottlePosition = Offset(_containerPosition.dx, _containerPosition.dy - 60);
+            _bottlePosition = Offset(_containerPosition!.dx, _containerPosition!.dy - 60);
             _bottleInCup = false;
             _bottleTransferred = true;
             _currentStep = 7;
             dropped = true;
           });
-          _updateTemperature();
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _updateTemperatureFromState();
+          });
         }
         break;
 
       case 'balloon':
-        if (_currentStep == 3 && _bottleInCup) {
+        if (_currentStep == 3 && _bottleInCup && _cupPosition != null) {
           setState(() {
             _balloonOnBottle = true;
             _currentStep = 4;
             _items.firstWhere((i) => i.id == 'balloon').used = true;
             dropped = true;
           });
-          _updateTemperature();
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _updateTemperatureFromState();
+          });
         }
         break;
 
       case 'container':
         if (_currentStep == 4 && _balloonOnBottle) {
           setState(() {
-            _containerPosition = Offset(dropPosition.dx - 40, dropPosition.dy - 40);
+            _containerPosition = dropPosition;
             _containerPlaced = true;
             _currentStep = 5;
             _items.firstWhere((i) => i.id == 'container').used = true;
@@ -213,6 +240,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       case 'coldWater':
         if (_currentStep == 5 && _containerPlaced) {
           setState(() {
+            _coldWaterPoured = true;
             _currentStep = 6;
             _items.firstWhere((i) => i.id == 'coldWater').used = true;
             dropped = true;
@@ -229,8 +257,10 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       
       // Check if experiment is complete
       if (_currentStep == 7 && !_experimentComplete) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          _showCompletionDialog();
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            _showCompletionDialog();
+          }
         });
       }
     }
@@ -256,19 +286,20 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       _bottleInCup = false;
       _balloonOnBottle = false;
       _containerPlaced = false;
+      _coldWaterPoured = false;
       _bottleTransferred = false;
       _experimentComplete = false;
-      _temperature = _roomTemp;
-      _balloonSize = 0.3;
-      _cupPosition = const Offset(300, 400);
-      _bottlePosition = const Offset(300, 300);
-      _containerPosition = const Offset(500, 400);
+      _temperatureCelsius = _roomTempC;
+      _currentVolume = _referenceVolume;
+      _cupPosition = null;
+      _bottlePosition = null;
+      _containerPosition = null;
       
       for (var item in _items) {
         item.used = false;
       }
     });
-    _balloonAnimationController.reset();
+    _animationController?.reset();
   }
 
   String _getStepInstruction() {
@@ -294,8 +325,33 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
     }
   }
 
+  /// Get color based on temperature
+  Color _getTemperatureColor() {
+    if (_temperatureCelsius < _roomTempC) {
+      return Colors.blue.shade700;
+    } else if (_temperatureCelsius > _roomTempC) {
+      return Colors.red.shade700;
+    }
+    return Colors.grey.shade700;
+  }
+
+  /// Get temperature icon
+  IconData _getTemperatureIcon() {
+    if (_temperatureCelsius < _roomTempC) {
+      return Icons.ac_unit;
+    } else if (_temperatureCelsius > _roomTempC) {
+      return Icons.whatshot;
+    }
+    return Icons.thermostat;
+  }
+  
+
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final tableCenterX = screenSize.width * 0.4;
+    final tableCenterY = screenSize.height * 0.35;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Charles Law: Balloon & Bottle"),
@@ -308,7 +364,12 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade100, Colors.grey.shade200],
+            colors: [
+              Colors.blue.shade50,
+              Colors.blue.shade100,
+              Colors.grey.shade100,
+            ],
+            stops: const [0.0, 0.5, 1.0],
           ),
         ),
         child: SafeArea(
@@ -317,69 +378,103 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    _updateTemperature();
                     return Stack(
                       children: [
                         // Table surface
                         Positioned.fill(
                           child: Container(
-                            margin: const EdgeInsets.only(top: 100),
+                            margin: EdgeInsets.only(top: constraints.maxHeight * 0.1),
                             decoration: BoxDecoration(
-                              color: Colors.brown.shade300,
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.brown.shade400,
+                                  Colors.brown.shade600,
+                                ],
+                              ),
                               borderRadius: const BorderRadius.only(
                                 topLeft: Radius.circular(20),
                                 topRight: Radius.circular(20),
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, -2),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                         
-                        // Cup
-                        if (_cupPlaced)
+                        // Cup (or combined cup with hot water and bottle)
+                        if (_cupPlaced && _cupPosition != null)
                           Positioned(
-                            left: _cupPosition.dx,
-                            top: _cupPosition.dy,
-                            child: _CupWidget(hasHotWater: _hotWaterPoured),
+                            left: _cupPosition!.dx - (_bottleInCup && _hotWaterPoured ? 100 : 60), // Center horizontally
+                            top: _cupPosition!.dy - (_bottleInCup && _hotWaterPoured ? 130 : 60), // Moved slightly up when combined
+                            child: _SvgImageWidget(
+                              svgPath: _bottleInCup && _hotWaterPoured
+                                  ? 'assets/charles_law/cup_hot_water_bottle.png'
+                                  : _hotWaterPoured 
+                                      ? 'assets/charles_law/cup_hot_water.png'
+                                      : 'assets/charles_law/cup.png',
+                              icon: Icons.local_drink,
+                              size: _bottleInCup && _hotWaterPoured ? 200 : 120, // Bigger when combined
+                            ),
                           ),
 
                         // Hot water steam
-                        if (_hotWaterPoured && _bottleInCup)
+                        if (_hotWaterPoured && 
+                            _bottleInCup && 
+                            _cupPosition != null &&
+                            _steamAnimationController != null)
                           Positioned(
-                            left: _cupPosition.dx + 20,
-                            top: _cupPosition.dy - 30,
-                            child: _SteamWidget(animation: _steamAnimation),
+                            left: _cupPosition!.dx - 20,
+                            top: _cupPosition!.dy - (_bottleInCup ? 160 : 90), // Adjusted for moved-up combined image
+                            child: _SteamWidget(controller: _steamAnimationController!),
                           ),
 
                         // Container
-                        if (_containerPlaced)
+                        if (_containerPlaced && _containerPosition != null)
                           Positioned(
-                            left: _containerPosition.dx,
-                            top: _containerPosition.dy,
-                            child: _ContainerWidget(hasColdWater: _currentStep >= 6),
+                            left: _containerPosition!.dx - 40,
+                            top: _containerPosition!.dy - 40,
+                            child: _SvgImageWidget(
+                              svgPath: _coldWaterPoured
+                                  ? 'assets/charles_law/container_cold_water.svg'
+                                  : 'assets/charles_law/container.png',
+                              icon: Icons.square,
+                              size: 80,
+                            ),
                           ),
 
-                        // Bottle
-                        if (_bottleInCup || _bottleTransferred)
+                        // Bottle (only show when transferred to container, not when in cup)
+                        if (_bottleTransferred && _bottlePosition != null)
                           Positioned(
-                            left: _bottlePosition.dx,
-                            top: _bottlePosition.dy,
-                            child: const _BottleWidget(),
+                            left: _bottlePosition!.dx - 20,
+                            top: _bottlePosition!.dy - 50,
+                            child: _SvgImageWidget(
+                              svgPath: 'assets/charles_law/bottle.png',
+                              icon: Icons.water_drop,
+                              size: 40,
+                            ),
                           ),
 
-                        // Balloon on bottle
-                        if (_balloonOnBottle)
+                        // Balloon on bottle (use cup position since bottle is in cup)
+                        if (_balloonOnBottle && _cupPosition != null)
                           Positioned(
-                            left: _bottlePosition.dx + 10,
-                            top: _bottlePosition.dy - 60,
-                            child: _BalloonWidget(size: _balloonSize),
+                            left: _cupPosition!.dx - (_currentVolume * 50), // Center based on balloon size
+                            top: _cupPosition!.dy - (_currentVolume * 100 + 30), // Position above cup/bottle
+                            child: _BalloonPlaceholder(size: _currentVolume),
                           ),
 
-                        // Drop zones
-                        // Cup drop zone
-                        if (_currentStep == 0)
+                        // Drop zones (only visible when dragging)
+                        // Cup drop zone (centered on table)
+                        if (_currentStep == 0 && _draggingItem != null)
                           Positioned(
-                            left: 200,
-                            top: 300,
+                            left: screenSize.width / 2 - 100,
+                            top: screenSize.height * 0.4 - 100,
                             child: _DropZone(
                               width: 200,
                               height: 200,
@@ -393,61 +488,61 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                           ),
 
                         // Hot water drop zone
-                        if (_currentStep == 1 && _cupPlaced)
+                        if (_currentStep == 1 && _cupPlaced && _cupPosition != null && _draggingItem != null)
                           Positioned(
-                            left: _cupPosition.dx - 20,
-                            top: _cupPosition.dy - 20,
+                            left: _cupPosition!.dx - 60,
+                            top: _cupPosition!.dy - 60,
                             child: _DropZone(
                               width: 120,
                               height: 120,
                               label: 'Pour Hot Water',
                               onAccept: (itemId, position) {
                                 if (itemId == 'hotWater') {
-                                  _onItemAccepted(itemId, position);
+                                  _onItemAccepted(itemId, _cupPosition!);
                                 }
                               },
                             ),
                           ),
 
-                        // Bottle drop zone (in cup)
-                        if (_currentStep == 2 && _hotWaterPoured)
+                        // Bottle drop zone (in cup) - centered on cup
+                        if (_currentStep == 2 && _hotWaterPoured && _cupPosition != null && _draggingItem != null)
                           Positioned(
-                            left: _cupPosition.dx - 20,
-                            top: _cupPosition.dy - 20,
+                            left: _cupPosition!.dx - 60, // Same as cup position (centered)
+                            top: _cupPosition!.dy - 60, // Same as cup position (centered)
                             child: _DropZone(
                               width: 120,
                               height: 120,
                               label: 'Place Bottle',
                               onAccept: (itemId, position) {
                                 if (itemId == 'bottle') {
-                                  _onItemAccepted(itemId, position);
+                                  _onItemAccepted(itemId, _cupPosition!);
                                 }
                               },
                             ),
                           ),
 
                         // Balloon drop zone (on bottle)
-                        if (_currentStep == 3 && _bottleInCup)
+                        if (_currentStep == 3 && _bottleInCup && _cupPosition != null && _draggingItem != null)
                           Positioned(
-                            left: _bottlePosition.dx - 30,
-                            top: _bottlePosition.dy - 80,
+                            left: _cupPosition!.dx - 50, // Use cup position since bottle is in cup
+                            top: _cupPosition!.dy - 150, // Above the cup/bottle
                             child: _DropZone(
                               width: 100,
                               height: 100,
                               label: 'Place Balloon',
                               onAccept: (itemId, position) {
                                 if (itemId == 'balloon') {
-                                  _onItemAccepted(itemId, position);
+                                  _onItemAccepted(itemId, _cupPosition!);
                                 }
                               },
                             ),
                           ),
 
                         // Container drop zone
-                        if (_currentStep == 4 && _balloonOnBottle)
+                        if (_currentStep == 4 && _balloonOnBottle && _draggingItem != null)
                           Positioned(
-                            left: 400,
-                            top: 300,
+                            left: tableCenterX + 100,
+                            top: tableCenterY - 100,
                             child: _DropZone(
                               width: 200,
                               height: 200,
@@ -461,34 +556,34 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                           ),
 
                         // Cold water drop zone
-                        if (_currentStep == 5 && _containerPlaced)
+                        if (_currentStep == 5 && _containerPlaced && _containerPosition != null && _draggingItem != null)
                           Positioned(
-                            left: _containerPosition.dx - 20,
-                            top: _containerPosition.dy - 20,
+                            left: _containerPosition!.dx - 60,
+                            top: _containerPosition!.dy - 60,
                             child: _DropZone(
                               width: 120,
                               height: 120,
                               label: 'Pour Cold Water',
                               onAccept: (itemId, position) {
                                 if (itemId == 'coldWater') {
-                                  _onItemAccepted(itemId, position);
+                                  _onItemAccepted(itemId, _containerPosition!);
                                 }
                               },
                             ),
                           ),
 
                         // Bottle transfer drop zone
-                        if (_currentStep == 6 && _containerPlaced)
+                        if (_currentStep == 6 && _containerPlaced && _containerPosition != null && _draggingItem != null)
                           Positioned(
-                            left: _containerPosition.dx - 20,
-                            top: _containerPosition.dy - 20,
+                            left: _containerPosition!.dx - 60,
+                            top: _containerPosition!.dy - 60,
                             child: _DropZone(
                               width: 120,
                               height: 120,
                               label: 'Transfer Bottle',
                               onAccept: (itemId, position) {
                                 if (itemId == 'bottle') {
-                                  _onItemAccepted(itemId, position);
+                                  _onItemAccepted(itemId, _containerPosition!);
                                 }
                               },
                             ),
@@ -498,8 +593,8 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                         Positioned(
                           right: 10,
                           top: 80,
-                          bottom: 100,
-                          width: 120,
+                          bottom: 200,
+                          width: 60,
                           child: _ItemShowcasePanel(
                             items: _items,
                             draggingItem: _draggingItem,
@@ -524,15 +619,16 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
               // Instructions and info panel
               Container(
                 padding: const EdgeInsets.all(12.0),
-                color: Colors.white.withValues(alpha: 0.95),
+                color: Colors.white.withOpacity(0.95),
                 child: Column(
                   children: [
                     Text(
                       _getStepInstruction(),
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: _currentStep == 7 ? Colors.green.shade700 : Colors.black,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _currentStep == 7 ? Colors.green.shade700 : Colors.blue.shade900,
+                        letterSpacing: 0.5,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -543,46 +639,27 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: _temperature > _roomTemp 
-                                ? Colors.red.shade100 
-                                : _temperature < _roomTemp 
-                                    ? Colors.blue.shade100 
-                                    : Colors.grey.shade100,
+                            color: _getTemperatureColor().withOpacity(0.2),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: _temperature > _roomTemp 
-                                  ? Colors.red.shade300 
-                                  : _temperature < _roomTemp 
-                                      ? Colors.blue.shade300 
-                                      : Colors.grey.shade300,
+                              color: _getTemperatureColor(),
+                              width: 2,
                             ),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                _temperature > _roomTemp 
-                                    ? Icons.whatshot 
-                                    : _temperature < _roomTemp 
-                                        ? Icons.ac_unit 
-                                        : Icons.thermostat,
+                                _getTemperatureIcon(),
                                 size: 16,
-                                color: _temperature > _roomTemp 
-                                    ? Colors.red.shade700 
-                                    : _temperature < _roomTemp 
-                                        ? Colors.blue.shade700 
-                                        : Colors.grey.shade700,
+                                color: _getTemperatureColor(),
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                '${_temperature.toStringAsFixed(0)}°C',
+                                '${_temperatureCelsius.toStringAsFixed(0)}°C',
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
-                                  color: _temperature > _roomTemp 
-                                      ? Colors.red.shade700 
-                                      : _temperature < _roomTemp 
-                                          ? Colors.blue.shade700 
-                                          : Colors.grey.shade700,
+                                  color: _getTemperatureColor(),
                                 ),
                               ),
                             ],
@@ -596,7 +673,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                             border: Border.all(color: Colors.purple.shade300),
                           ),
                           child: Text(
-                            'Balloon: ${(_balloonSize * 100).toStringAsFixed(0)}%',
+                            'Volume: ${(_currentVolume * 100).toStringAsFixed(0)}%',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -653,19 +730,38 @@ class _ItemShowcasePanel extends StatelessWidget {
     required this.onDragStart,
     required this.onDragEnd,
   });
+  
+  /// Get SVG asset path for an item (returns null if SVG doesn't exist)
+  static String? _getSvgPathForItem(String itemId) {
+    final svgPaths = {
+      'cup': 'assets/charles_law/cup.png',
+      'bottle': 'assets/charles_law/bottle.png',
+      'balloon': 'assets/charles_law/balloon.svg',
+      'container': 'assets/charles_law/container.png',
+      'hotWater': 'assets/charles_law/hot_water.svg',
+      'coldWater': 'assets/charles_law/cold_water.svg',
+    };
+    return svgPaths[itemId];
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Filter out used items (unless currently being dragged)
+    final visibleItems = items.where((item) => 
+      !item.used || draggingItem == item.id
+    ).toList();
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withOpacity(0.9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
             decoration: BoxDecoration(
               color: Colors.blue.shade100,
               borderRadius: const BorderRadius.only(
@@ -677,87 +773,114 @@ class _ItemShowcasePanel extends StatelessWidget {
               'Materials',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 9,
               ),
               textAlign: TextAlign.center,
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                if (item.used && draggingItem != item.id) {
-                  return const SizedBox.shrink();
-                }
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Calculate item size based on available space
+                final itemCount = visibleItems.length;
+                final availableHeight = constraints.maxHeight;
+                final headerHeight = 24.0;
+                final totalPadding = (itemCount - 1) * 4.0; // vertical padding between items
+                final itemHeight = ((availableHeight - headerHeight - totalPadding) / itemCount).clamp(40.0, 48.0);
                 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Draggable<String>(
-                    data: item.id,
-                    feedback: Material(
-                      color: Colors.transparent,
-                      child: Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade200,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.shade400, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(2, 2),
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: visibleItems.map((item) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                      child: Draggable<String>(
+                        data: item.id,
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade200,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.blue.shade400, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(2, 2),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: Icon(item.icon, size: 30, color: Colors.blue.shade700),
-                      ),
-                    ),
-                    childWhenDragging: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(item.icon, size: 30, color: Colors.grey.shade600),
-                    ),
-                    onDragStarted: () {
-                      onDragStart(item.id);
-                      SoundService().playTouchSound();
-                    },
-                    onDragEnd: (_) {
-                      onDragEnd();
-                    },
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade300),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(item.icon, size: 24, color: Colors.blue.shade700),
-                          Text(
-                            item.label,
-                            style: TextStyle(
-                              fontSize: 10,
+                            child: _SvgOrIconWidget(
+                              svgPath: _getSvgPathForItem(item.id),
+                              icon: item.icon,
+                              size: 24,
                               color: Colors.blue.shade700,
-                              fontWeight: FontWeight.bold,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ],
+                        ),
+                        childWhenDragging: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: _SvgOrIconWidget(
+                            svgPath: _getSvgPathForItem(item.id),
+                            icon: item.icon,
+                            size: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        onDragStarted: () {
+                          onDragStart(item.id);
+                          SoundService().playTouchSound();
+                        },
+                        onDragEnd: (_) {
+                          onDragEnd();
+                        },
+                        child: SizedBox(
+                          width: 48,
+                          height: itemHeight,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.blue.shade300, width: 1),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _SvgOrIconWidget(
+                                  svgPath: _getSvgPathForItem(item.id),
+                                  icon: item.icon,
+                                  size: 16,
+                                  color: Colors.blue.shade700,
+                                ),
+                                const SizedBox(height: 1),
+                                Flexible(
+                                  child: Text(
+                                    item.label,
+                                    style: TextStyle(
+                                      fontSize: 7,
+                                      color: Colors.blue.shade700,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  }).toList(),
                 );
               },
             ),
@@ -768,256 +891,229 @@ class _ItemShowcasePanel extends StatelessWidget {
   }
 }
 
-class _CupWidget extends StatelessWidget {
-  final bool hasHotWater;
+/// Helper widget that uses SVG if available, otherwise falls back to Material Icon
+class _SvgOrIconWidget extends StatelessWidget {
+  final String? svgPath;
+  final IconData icon;
+  final double size;
+  final Color? color;
 
-  const _CupWidget({required this.hasHotWater});
+  const _SvgOrIconWidget({
+    this.svgPath,
+    required this.icon,
+    required this.size,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(80, 80),
-      painter: _CupPainter(hasHotWater: hasHotWater),
-    );
-  }
-}
-
-class _CupPainter extends CustomPainter {
-  final bool hasHotWater;
-
-  _CupPainter({required this.hasHotWater});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.white;
-
-    final strokePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = Colors.grey.shade700;
-
-    // Cup body
-    final cupPath = Path()
-      ..moveTo(size.width * 0.2, size.height * 0.8)
-      ..lineTo(size.width * 0.2, size.height * 0.3)
-      ..quadraticBezierTo(size.width * 0.2, size.height * 0.2, size.width * 0.3, size.height * 0.2)
-      ..lineTo(size.width * 0.7, size.height * 0.2)
-      ..quadraticBezierTo(size.width * 0.8, size.height * 0.2, size.width * 0.8, size.height * 0.3)
-      ..lineTo(size.width * 0.8, size.height * 0.8)
-      ..close();
-
-    canvas.drawPath(cupPath, paint);
-    canvas.drawPath(cupPath, strokePaint);
-
-    // Handle
-    final handlePath = Path()
-      ..moveTo(size.width * 0.8, size.height * 0.4)
-      ..quadraticBezierTo(size.width * 1.1, size.height * 0.35, size.width * 1.1, size.height * 0.5)
-      ..quadraticBezierTo(size.width * 1.1, size.height * 0.65, size.width * 0.8, size.height * 0.6);
-
-    canvas.drawPath(handlePath, strokePaint);
-
-    // Hot water
-    if (hasHotWater) {
-      final waterPaint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = Colors.orange.shade200.withValues(alpha: 0.7);
-
-      final waterPath = Path()
-        ..moveTo(size.width * 0.25, size.height * 0.5)
-        ..lineTo(size.width * 0.75, size.height * 0.5)
-        ..lineTo(size.width * 0.75, size.height * 0.8)
-        ..lineTo(size.width * 0.25, size.height * 0.8)
-        ..close();
-
-      canvas.drawPath(waterPath, waterPaint);
+    // Try to use image if path is provided, otherwise use icon
+    if (svgPath != null) {
+      try {
+        // Check if it's PNG or SVG
+        if (svgPath!.toLowerCase().endsWith('.png') || 
+            svgPath!.toLowerCase().endsWith('.jpg') ||
+            svgPath!.toLowerCase().endsWith('.jpeg')) {
+          return Image.asset(
+            svgPath!,
+            width: size,
+            height: size,
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('Failed to load image: $svgPath');
+              debugPrint('Error: $error');
+              return Icon(
+                icon,
+                size: size,
+                color: color ?? Colors.grey.shade700,
+              );
+            },
+          );
+        } else {
+          // SVG image
+          return SvgPicture.asset(
+            svgPath!,
+            width: size,
+            height: size,
+            colorFilter: color != null 
+                ? ColorFilter.mode(color!, BlendMode.srcIn)
+                : null,
+            placeholderBuilder: (context) => Icon(
+              icon,
+              size: size,
+              color: color ?? Colors.grey.shade700,
+            ),
+          );
+        }
+      } catch (e) {
+        // If image fails to load, fall back to icon
+        return Icon(
+          icon,
+          size: size,
+          color: color ?? Colors.grey.shade700,
+        );
+      }
     }
-  }
-
-  @override
-  bool shouldRepaint(_CupPainter oldDelegate) => oldDelegate.hasHotWater != hasHotWater;
-}
-
-class _BottleWidget extends StatelessWidget {
-  const _BottleWidget();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(40, 100),
-      painter: _BottlePainter(),
+    
+    return Icon(
+      icon,
+      size: size,
+      color: color ?? Colors.grey.shade700,
     );
   }
 }
 
-class _BottlePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = Colors.blue.shade300;
-
-    // Bottle outline (transparent)
-    final bottlePath = Path()
-      ..moveTo(size.width * 0.3, size.height)
-      ..lineTo(size.width * 0.3, size.height * 0.2)
-      ..quadraticBezierTo(size.width * 0.3, size.height * 0.1, size.width * 0.5, size.height * 0.1)
-      ..quadraticBezierTo(size.width * 0.7, size.height * 0.1, size.width * 0.7, size.height * 0.2)
-      ..lineTo(size.width * 0.7, size.height)
-      ..close();
-
-    canvas.drawPath(bottlePath, paint);
-
-    // Glass reflection
-    final reflectionPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.white.withValues(alpha: 0.3);
-
-    canvas.drawRect(
-      Rect.fromLTWH(size.width * 0.35, size.height * 0.3, size.width * 0.2, size.height * 0.4),
-      reflectionPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_BottlePainter oldDelegate) => false;
-}
-
-class _BalloonWidget extends StatelessWidget {
+/// Widget to display SVG images for dropped items
+class _SvgImageWidget extends StatelessWidget {
+  final String svgPath;
+  final IconData icon;
   final double size;
 
-  const _BalloonWidget({required this.size});
+  const _SvgImageWidget({
+    required this.svgPath,
+    required this.icon,
+    required this.size,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final balloonSize = 40.0 + (size * 60.0);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Center(
+        child: _SvgOrIconWidget(
+          svgPath: svgPath,
+          icon: icon,
+          size: size,
+          color: null,
+        ),
+      ),
+    );
+  }
+}
+
+/// Balloon placeholder widget
+class _BalloonPlaceholder extends StatelessWidget {
+  final double size;
+
+  const _BalloonPlaceholder({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final balloonSize = 40.0 + (size * 80.0);
     return CustomPaint(
       size: Size(balloonSize, balloonSize),
-      painter: _BalloonPainter(size: size),
+      painter: _BalloonPainter(volume: size),
     );
   }
 }
 
 class _BalloonPainter extends CustomPainter {
-  final double size;
-
-  _BalloonPainter({required this.size});
-
+  final double volume;
+  
+  _BalloonPainter({required this.volume});
+  
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.red.shade300;
+    final paint = Paint();
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
 
-    final strokePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = Colors.red.shade700;
+    // Oblong/elliptical balloon shape - elongated vertically (taller than wide)
+    final balloonPath = Path();
+    
+    // Create oblong shape - taller vertically than wide horizontally
+    final radiusX = size.width * 0.35; // Horizontal radius (narrower)
+    final radiusY = size.height * 0.45; // Vertical radius (taller)
+    
+    // Main oblong body (ellipse) - vertically elongated
+    balloonPath.addOval(Rect.fromCenter(
+      center: Offset(centerX, centerY - 5),
+      width: radiusX * 2, // Narrower width
+      height: radiusY * 2, // Taller height
+    ));
+    
+    // Narrow neck at bottom connecting to bottle
+    balloonPath.lineTo(centerX, size.height - 8);
+    balloonPath.close();
 
-    // Balloon shape (ellipse)
-    final center = Offset(size.width / 2, size.height / 2);
-    final radiusX = size.width / 2;
-    final radiusY = size.height / 2;
+    // Base gradient fill
+    final colorSwatch = Colors.red;
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        colorSwatch.shade200,
+        colorSwatch.shade300,
+        colorSwatch.shade400,
+        colorSwatch.shade600,
+      ],
+      stops: const [0.0, 0.3, 0.6, 1.0],
+    );
+    paint.shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    paint.style = PaintingStyle.fill;
+    canvas.drawPath(balloonPath, paint);
 
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: radiusX * 2, height: radiusY * 2),
+    // Highlight on upper left side (lighter)
+    paint.shader = null;
+    paint.color = Colors.white.withValues(alpha: 0.4);
+    paint.style = PaintingStyle.fill;
+    final highlightPath = Path();
+    highlightPath.addOval(Rect.fromCenter(
+      center: Offset(centerX - radiusX * 0.2, centerY - radiusY * 0.3),
+      width: size.width * 0.4,
+      height: size.height * 0.3,
+    ));
+    canvas.drawPath(highlightPath, paint);
+
+    // Border/stroke
+    paint.color = colorSwatch.shade800;
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 2.0;
+    canvas.drawPath(balloonPath, paint);
+
+    // Darker rolled rim at bottom (darker pink/red)
+    paint.color = colorSwatch.shade900;
+    paint.style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(centerX, size.height - 5),
+          width: size.width * 0.12,
+          height: 8,
+        ),
+        const Radius.circular(4),
+      ),
       paint,
     );
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: radiusX * 2, height: radiusY * 2),
-      strokePaint,
-    );
-
-    // Highlight
-    final highlightPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.white.withValues(alpha: 0.5);
-
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(center.dx - radiusX * 0.3, center.dy - radiusY * 0.3),
-        width: radiusX * 0.6,
-        height: radiusY * 0.6,
-      ),
-      highlightPaint,
-    );
+    
+    // Small circle at the very bottom (opening)
+    paint.color = colorSwatch.shade900;
+    paint.style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(centerX, size.height - 1), 2.5, paint);
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 1;
+    paint.color = Colors.black.withValues(alpha: 0.3);
+    canvas.drawCircle(Offset(centerX, size.height - 1), 2.5, paint);
   }
-
+  
   @override
-  bool shouldRepaint(_BalloonPainter oldDelegate) => oldDelegate.size != size;
+  bool shouldRepaint(_BalloonPainter oldDelegate) => oldDelegate.volume != volume;
 }
 
-class _ContainerWidget extends StatelessWidget {
-  final bool hasColdWater;
-
-  const _ContainerWidget({required this.hasColdWater});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(80, 80),
-      painter: _ContainerPainter(hasColdWater: hasColdWater),
-    );
-  }
-}
-
-class _ContainerPainter extends CustomPainter {
-  final bool hasColdWater;
-
-  _ContainerPainter({required this.hasColdWater});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.grey.shade200;
-
-    final strokePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = Colors.grey.shade700;
-
-    // Container (rectangular)
-    final containerRect = Rect.fromLTWH(0, 0, size.width, size.height);
-    canvas.drawRect(containerRect, paint);
-    canvas.drawRect(containerRect, strokePaint);
-
-    // Cold water
-    if (hasColdWater) {
-      final waterPaint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = Colors.blue.shade200.withValues(alpha: 0.7);
-
-      final waterRect = Rect.fromLTWH(
-        size.width * 0.1,
-        size.height * 0.5,
-        size.width * 0.8,
-        size.height * 0.4,
-      );
-      canvas.drawRect(waterRect, waterPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ContainerPainter oldDelegate) => oldDelegate.hasColdWater != hasColdWater;
-}
-
+/// Steam animation widget
 class _SteamWidget extends StatelessWidget {
-  final Animation<double> animation;
+  final AnimationController controller;
 
-  const _SteamWidget({required this.animation});
+  const _SteamWidget({required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: animation,
+      animation: controller,
       builder: (context, child) {
         return CustomPaint(
           size: const Size(40, 60),
-          painter: _SteamPainter(progress: animation.value),
+          painter: _SteamPainter(progress: controller.value),
         );
       },
     );
@@ -1031,22 +1127,47 @@ class _SteamPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = Colors.white.withValues(alpha: 0.6 - progress * 0.4);
-
     final offsetY = progress * size.height;
+    final opacity = (0.8 - progress * 0.5).clamp(0.3, 0.8);
 
-    // Steam particles
-    for (int i = 0; i < 3; i++) {
-      final x = size.width * (0.2 + i * 0.3);
-      final y = size.height - offsetY + (i * 5.0);
+    // Draw multiple steam particles with varying sizes
+    for (int i = 0; i < 5; i++) {
+      final x = size.width * (0.15 + i * 0.175);
+      final y = size.height - offsetY + (i * 8.0);
+      final particleSize = 4.0 + i * 1.5;
+      final particleOpacity = opacity * (1.0 - i * 0.15);
+      
+      // Outer glow
+      final glowPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.white.withOpacity(particleOpacity * 0.3);
       
       canvas.drawCircle(
         Offset(x, y),
-        3 + i * 2,
+        particleSize + 2,
+        glowPaint,
+      );
+      
+      // Main particle
+      final paint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.white.withOpacity(particleOpacity);
+      
+      canvas.drawCircle(
+        Offset(x, y),
+        particleSize,
         paint,
+      );
+      
+      // Inner highlight
+      final highlightPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.white.withOpacity(particleOpacity * 0.6);
+      
+      canvas.drawCircle(
+        Offset(x - particleSize * 0.3, y - particleSize * 0.3),
+        particleSize * 0.4,
+        highlightPaint,
       );
     }
   }
@@ -1055,7 +1176,7 @@ class _SteamPainter extends CustomPainter {
   bool shouldRepaint(_SteamPainter oldDelegate) => oldDelegate.progress != progress;
 }
 
-class _DropZone extends StatelessWidget {
+class _DropZone extends StatefulWidget {
   final double width;
   final double height;
   final String label;
@@ -1069,46 +1190,89 @@ class _DropZone extends StatelessWidget {
   });
 
   @override
+  State<_DropZone> createState() => _DropZoneState();
+}
+
+class _DropZoneState extends State<_DropZone> with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+    
+    _pulseAnimation = Tween<double>(begin: 0.3, end: 0.6).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DragTarget<String>(
-      onAcceptWithDetails: (itemId) {
+      onAcceptWithDetails: (details) {
         final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
         if (renderBox != null) {
           final position = renderBox.localToGlobal(Offset.zero);
-          onAccept(itemId.data, position);
+          widget.onAccept(details.data, position);
         }
       },
       builder: (context, candidateData, rejectedData) {
         final isHighlighted = candidateData.isNotEmpty;
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: isHighlighted
-                ? Colors.green.shade100.withValues(alpha: 0.5)
-                : Colors.blue.shade50.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isHighlighted
-                  ? Colors.green.shade400
-                  : Colors.blue.shade300,
-              width: isHighlighted ? 3 : 2,
-              style: BorderStyle.solid,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+        
+        return AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) {
+            return Container(
+              width: widget.width,
+              height: widget.height,
+              decoration: BoxDecoration(
                 color: isHighlighted
-                    ? Colors.green.shade700
-                    : Colors.blue.shade700,
+                    ? Colors.green.shade100.withOpacity(0.7)
+                    : Colors.blue.shade50.withOpacity(_pulseAnimation.value),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isHighlighted
+                      ? Colors.green.shade500
+                      : Colors.blue.shade300.withOpacity(0.5),
+                  width: isHighlighted ? 3 : 2,
+                  style: BorderStyle.solid,
+                ),
+                boxShadow: isHighlighted
+                    ? [
+                        BoxShadow(
+                          color: Colors.green.shade300.withOpacity(0.6),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : null,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ),
+              child: Center(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isHighlighted
+                        ? Colors.green.shade800
+                        : Colors.blue.shade700.withOpacity(0.8),
+                    letterSpacing: 0.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1139,7 +1303,7 @@ class _CompletionDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              'WHAT HAPPENED TO THE BALLOON AS THE BOTTLE IS PLACED IN A HOT WATER?',
+              'WHAT HAPPENED TO THE BALLOON AS THE BOTTLE IS PLACED IN HOT WATER?',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

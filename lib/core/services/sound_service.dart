@@ -1,4 +1,4 @@
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:flutter/foundation.dart';
 import '../services/settings_service.dart';
 
@@ -22,21 +22,17 @@ class SoundService {
     try {
       await _settingsService.initialize();
       
-      // Create audio players after plugins are registered
-      // Use separate player instances with unique IDs to prevent interference
-      _backgroundPlayer = AudioPlayer(playerId: 'background_music');
-      _soundEffectsPlayer = AudioPlayer(playerId: 'sound_effects');
-      
-      // Configure player modes - mediaPlayer for background music, lowLatency for sound effects
-      await _backgroundPlayer!.setPlayerMode(PlayerMode.mediaPlayer);
-      await _soundEffectsPlayer!.setPlayerMode(PlayerMode.lowLatency);
+      // Create audio players for background music and sound effects
+      _backgroundPlayer = AudioPlayer();
+      _soundEffectsPlayer = AudioPlayer();
       
       // Set background music to loop
-      await _backgroundPlayer!.setReleaseMode(ReleaseMode.loop);
+      await _backgroundPlayer!.setLoopMode(LoopMode.one);
       
       // Add listener to detect if background music stops unexpectedly
-      _backgroundPlayer!.onPlayerStateChanged.listen((state) {
-        if (state == PlayerState.completed || state == PlayerState.stopped) {
+      _backgroundPlayer!.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed || 
+            state.processingState == ProcessingState.idle) {
           // Music stopped unexpectedly, restart if enabled
           if (_settingsService.isMusicEnabled && _isBackgroundMusicPlaying) {
             debugPrint('Background music stopped unexpectedly, restarting...');
@@ -46,7 +42,7 @@ class SoundService {
           } else {
             _isBackgroundMusicPlaying = false;
           }
-        } else if (state == PlayerState.playing) {
+        } else if (state.playing) {
           _isBackgroundMusicPlaying = true;
         }
       });
@@ -66,7 +62,7 @@ class SoundService {
     }
   }
 
-  /// Play background music
+  /// Play background music from asset file
   Future<void> playBackgroundMusic() async {
     if (!_isInitialized || _backgroundPlayer == null) {
       debugPrint('Sound service not initialized or player is null');
@@ -85,9 +81,12 @@ class SoundService {
     }
 
     try {
-      // Ensure looping is enabled before playing
-      await _backgroundPlayer!.setReleaseMode(ReleaseMode.loop);
-      await _backgroundPlayer!.play(AssetSource('sounds/background_music.wav'));
+      // Load background music from assets
+      final audioSource = AudioSource.asset('assets/Sounds/background_music.wav');
+      
+      await _backgroundPlayer!.setLoopMode(LoopMode.one);
+      await _backgroundPlayer!.setAudioSource(audioSource);
+      await _backgroundPlayer!.play();
       _isBackgroundMusicPlaying = true;
       debugPrint('Background music started');
     } catch (e) {
@@ -124,20 +123,19 @@ class SoundService {
     if (!_settingsService.isMusicEnabled) return;
     try {
       // Check current state - if not playing, start fresh instead of resume
-      final state = _backgroundPlayer!.state;
-      if (state == PlayerState.playing) {
+      final state = _backgroundPlayer!.playerState;
+      if (state.playing) {
         // Already playing, nothing to do
         _isBackgroundMusicPlaying = true;
         return;
       }
       
       // If paused, resume; otherwise start fresh
-      if (state == PlayerState.paused) {
-        await _backgroundPlayer!.setReleaseMode(ReleaseMode.loop);
-        await _backgroundPlayer!.resume();
+      if (state.processingState == ProcessingState.ready) {
+        await _backgroundPlayer!.play();
         _isBackgroundMusicPlaying = true;
       } else {
-        // Not playing or paused, start fresh
+        // Not ready, start fresh
         await playBackgroundMusic();
       }
     } catch (e) {
@@ -147,7 +145,7 @@ class SoundService {
     }
   }
 
-  /// Play touch sound effect
+  /// Play touch sound effect from asset file
   Future<void> playTouchSound() async {
     if (!_isInitialized || _soundEffectsPlayer == null) {
       return;
@@ -158,24 +156,19 @@ class SoundService {
     }
 
     try {
-      // Play touch sound without affecting background music
-      // Using a separate player with lowLatency mode ensures it doesn't interfere
-      await _soundEffectsPlayer!.play(
-        AssetSource('sounds/touch_sound.wav'),
-        volume: _settingsService.soundEffectsVolume,
-      );
+      // Load UI click sound from assets
+      final audioSource = AudioSource.asset('assets/Sounds/ui_click.wav');
       
-      // Ensure background music is still playing after touch sound
-      // Check after a short delay to allow touch sound to start
-      Future.delayed(const Duration(milliseconds: 50), () async {
-        if (_backgroundPlayer != null && _settingsService.isMusicEnabled) {
-          final bgState = _backgroundPlayer!.state;
-          if (bgState != PlayerState.playing && _isBackgroundMusicPlaying) {
-            debugPrint('Background music stopped after touch sound, restarting...');
-            await playBackgroundMusic();
-          }
-        }
-      });
+      // Set volume from settings
+      try {
+        await _soundEffectsPlayer!.setVolume(_settingsService.soundEffectsVolume);
+      } catch (e) {
+        debugPrint('Could not set sound effects volume: $e');
+      }
+      
+      // Play the click sound (don't loop)
+      await _soundEffectsPlayer!.setAudioSource(audioSource);
+      await _soundEffectsPlayer!.play();
     } catch (e) {
       debugPrint('Error playing touch sound: $e');
     }
@@ -184,10 +177,19 @@ class SoundService {
   /// Update volumes from settings
   Future<void> _updateVolumes() async {
     if (_backgroundPlayer != null) {
-      await _backgroundPlayer!.setVolume(_settingsService.musicVolume);
+      try {
+        await _backgroundPlayer!.setVolume(_settingsService.musicVolume);
+      } catch (e) {
+        // If setVolume doesn't exist, volume might be read-only
+        debugPrint('Could not set volume: $e');
+      }
     }
     if (_soundEffectsPlayer != null) {
-      await _soundEffectsPlayer!.setVolume(_settingsService.soundEffectsVolume);
+      try {
+        await _soundEffectsPlayer!.setVolume(_settingsService.soundEffectsVolume);
+      } catch (e) {
+        debugPrint('Could not set sound effects volume: $e');
+      }
     }
   }
 
@@ -205,7 +207,12 @@ class SoundService {
   Future<void> setMusicVolume(double volume) async {
     await _settingsService.setMusicVolume(volume);
     if (_backgroundPlayer != null) {
-      await _backgroundPlayer!.setVolume(volume);
+      try {
+        await _backgroundPlayer!.setVolume(volume);
+      } catch (e) {
+        // If setVolume doesn't exist, volume might be read-only
+        debugPrint('Could not set volume: $e');
+      }
     }
   }
 
@@ -218,7 +225,11 @@ class SoundService {
   Future<void> setSoundEffectsVolume(double volume) async {
     await _settingsService.setSoundEffectsVolume(volume);
     if (_soundEffectsPlayer != null) {
-      await _soundEffectsPlayer!.setVolume(volume);
+      try {
+        await _soundEffectsPlayer!.setVolume(volume);
+      } catch (e) {
+        debugPrint('Could not set sound effects volume: $e');
+      }
     }
   }
 
