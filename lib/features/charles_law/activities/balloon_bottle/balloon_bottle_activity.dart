@@ -739,15 +739,20 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                 color: Colors.white.withOpacity(0.95),
                 child: Column(
                   children: [
-                    Text(
-                      _getStepInstruction(),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _currentStep == 7 ? Colors.green.shade700 : Colors.blue.shade900,
-                        letterSpacing: 0.5,
+                    SizedBox(
+                      height: 60, // Fixed height to prevent layout shifts
+                      child: Center(
+                        child: Text(
+                          _getStepInstruction(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: _currentStep == 7 ? Colors.green.shade700 : Colors.blue.shade900,
+                            letterSpacing: 0.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
                     Row(
