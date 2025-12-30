@@ -464,28 +464,15 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                       children: [
                         // Table surface
                         Positioned.fill(
-                          child: Container(
-                            margin: EdgeInsets.only(top: constraints.maxHeight * 0.1),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.brown.shade400,
-                                  Colors.brown.shade600,
-                                ],
-                              ),
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(20),
-                                topRight: Radius.circular(20),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, -2),
+                          child: Transform.translate(
+                            offset: Offset(0, constraints.maxHeight * 0.4),
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                image: DecorationImage(
+                                  image: AssetImage('assets/charles_law/table.png'),
+                                  fit: BoxFit.contain,
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
