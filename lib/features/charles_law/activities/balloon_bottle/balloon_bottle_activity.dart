@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/services/sound_service.dart';
@@ -29,6 +30,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   Offset? _cupPosition;
   Offset? _bottlePosition;
   Offset? _containerPosition;
+  Offset? _fixedNeckPosition; // Fixed neck position when balloon is first placed
 
   // Dragging state
   String? _draggingItem;
@@ -51,6 +53,14 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   AnimationController? _animationController;
   Animation<double>? _volumeAnimation;
   AnimationController? _steamAnimationController;
+  
+  // Initial inflation animation (when balloon is first placed)
+  AnimationController? _initialInflationController;
+  Animation<double>? _initialInflationAnimation;
+  bool _isInitialInflating = false;
+  
+  // Timer for continuous temperature updates
+  Timer? _temperatureUpdateTimer;
 
   // Item showcase positions (right side)
   final List<_ItemData> _items = [
@@ -76,6 +86,19 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       duration: const Duration(milliseconds: 2000),
     )..repeat();
     
+    _initialInflationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 6000), // 6 seconds for initial inflation
+    );
+    
+    _initialInflationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _initialInflationController!,
+      curve: Curves.easeOut,
+    ));
+    
     _volumeAnimation = Tween<double>(
       begin: _referenceVolume,
       end: _referenceVolume,
@@ -85,6 +108,11 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
     ));
     
     _volumeAnimation!.addListener(_onVolumeAnimationUpdate);
+    _initialInflationAnimation!.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
   
   void _onVolumeAnimationUpdate() {
@@ -98,8 +126,11 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   @override
   void dispose() {
     _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
+    _initialInflationAnimation?.removeListener(() {});
+    _temperatureUpdateTimer?.cancel();
     _animationController?.dispose();
     _steamAnimationController?.dispose();
+    _initialInflationController?.dispose();
     super.dispose();
   }
 
@@ -111,44 +142,73 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   double _calculateVolume(double temperatureCelsius) {
     final temperatureK = _celsiusToKelvin(temperatureCelsius);
     final newVolume = _referenceVolume * (temperatureK / _referenceTempK);
-    return newVolume.clamp(0.3, 2.0); // Clamp to reasonable visual range
+    return newVolume.clamp(0.3, 1.1); // Clamp to max 10% above reference size
   }
 
   /// Update temperature based on experiment state and animate volume change
   void _updateTemperatureFromState() {
     if (!mounted || _animationController == null) return;
     
+    // Cancel any existing timer
+    _temperatureUpdateTimer?.cancel();
+    
     double targetTemp = _roomTempC;
     
-    if (_bottleInCup && _hotWaterPoured && _balloonOnBottle) {
-      targetTemp = _hotTempC;
+    if (_bottleInCup && _hotWaterPoured) {
+      targetTemp = 73.0; // Bottle reaches 73°C when placed in hot water
     } else if (_bottleTransferred && _coldWaterPoured) {
       targetTemp = _coldTempC;
     }
 
-    if ((_temperatureCelsius - targetTemp).abs() > 0.1) {
-      setState(() {
-        _temperatureCelsius = _temperatureCelsius + (targetTemp - _temperatureCelsius) * 0.1;
-      });
+    // Start continuous temperature updates
+    _temperatureUpdateTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       
-      final targetVolume = _calculateVolume(_temperatureCelsius);
-      
-      // Remove old listener before recreating animation
-      _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
-      
-      _volumeAnimation = Tween<double>(
-        begin: _currentVolume,
-        end: targetVolume,
-      ).animate(CurvedAnimation(
-        parent: _animationController!,
-        curve: Curves.easeInOut,
-      ));
-      
-      // Reattach listener
-      _volumeAnimation!.addListener(_onVolumeAnimationUpdate);
-      
-      _animationController!.forward(from: 0.0);
-    }
+      if ((_temperatureCelsius - targetTemp).abs() > 0.1) {
+        setState(() {
+          _temperatureCelsius = _temperatureCelsius + (targetTemp - _temperatureCelsius) * 0.1;
+        });
+        
+        final targetVolume = _calculateVolume(_temperatureCelsius);
+        
+        // Remove old listener before recreating animation
+        _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
+        
+        _volumeAnimation = Tween<double>(
+          begin: _currentVolume,
+          end: targetVolume,
+        ).animate(CurvedAnimation(
+          parent: _animationController!,
+          curve: Curves.easeInOut,
+        ));
+        
+        // Reattach listener
+        _volumeAnimation!.addListener(_onVolumeAnimationUpdate);
+        
+        _animationController!.forward(from: 0.0);
+      } else {
+        // Reached target temperature, stop timer
+        timer.cancel();
+        // Final update to ensure we're exactly at target
+        setState(() {
+          _temperatureCelsius = targetTemp;
+        });
+        final targetVolume = _calculateVolume(_temperatureCelsius);
+        _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
+        _volumeAnimation = Tween<double>(
+          begin: _currentVolume,
+          end: targetVolume,
+        ).animate(CurvedAnimation(
+          parent: _animationController!,
+          curve: Curves.easeInOut,
+        ));
+        _volumeAnimation!.addListener(_onVolumeAnimationUpdate);
+        _animationController!.forward(from: 0.0);
+      }
+    });
   }
 
 
@@ -213,14 +273,31 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
 
       case 'balloon':
         if (_currentStep == 3 && _bottleInCup && _cupPosition != null) {
+          // Calculate and store fixed neck position (where balloon attaches to bottle)
+          // Bottle opening is at the top of the combined cup/bottle image
+          // Combined image top: _cupPosition!.dy - 130, size: 200
+          // Bottle opening is approximately 30px from top of image
+          final fixedNeckBottomY = _cupPosition!.dy - 130 + 30;
+          // Store fixed neck position (center X, bottom Y)
+          final fixedNeckX = _cupPosition!.dx; // Center of bottle opening
           setState(() {
             _balloonOnBottle = true;
+            _fixedNeckPosition = Offset(fixedNeckX, fixedNeckBottomY); // Store fixed position
             _currentStep = 4;
             _items.firstWhere((i) => i.id == 'balloon').used = true;
             dropped = true;
+            _isInitialInflating = true;
           });
-          Future.delayed(const Duration(milliseconds: 300), () {
-            _updateTemperatureFromState();
+          // Start initial inflation animation
+          _initialInflationController?.forward(from: 0.0);
+          // After initial inflation completes, start temperature-based updates
+          Future.delayed(const Duration(milliseconds: 6100), () {
+            if (mounted) {
+              setState(() {
+                _isInitialInflating = false;
+              });
+              _updateTemperatureFromState();
+            }
           });
         }
         break;
@@ -285,6 +362,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       _hotWaterPoured = false;
       _bottleInCup = false;
       _balloonOnBottle = false;
+      _fixedNeckPosition = null;
       _containerPlaced = false;
       _coldWaterPoured = false;
       _bottleTransferred = false;
@@ -294,12 +372,28 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       _cupPosition = null;
       _bottlePosition = null;
       _containerPosition = null;
+      _isInitialInflating = false;
       
       for (var item in _items) {
         item.used = false;
       }
     });
     _animationController?.reset();
+    _initialInflationController?.reset();
+  }
+  
+  /// Get effective balloon size (accounts for initial inflation animation)
+  double _getEffectiveBalloonSize() {
+    if (!_balloonOnBottle) return _currentVolume;
+    
+    if (_isInitialInflating && _initialInflationAnimation != null) {
+      // Start from 10% of volume and grow to current volume
+      final startSize = _currentVolume * 0.1;
+      final endSize = _currentVolume;
+      return startSize + (endSize - startSize) * _initialInflationAnimation!.value;
+    }
+    
+    return _currentVolume;
   }
 
   String _getStepInstruction() {
@@ -461,12 +555,39 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                             ),
                           ),
 
-                        // Balloon on bottle (use cup position since bottle is in cup)
-                        if (_balloonOnBottle && _cupPosition != null)
-                          Positioned(
-                            left: _cupPosition!.dx - (_currentVolume * 50), // Center based on balloon size
-                            top: _cupPosition!.dy - (_currentVolume * 100 + 30), // Position above cup/bottle
-                            child: _BalloonPlaceholder(size: _currentVolume),
+                        // Balloon on bottle (use fixed neck position stored when placed)
+                        if (_balloonOnBottle && _fixedNeckPosition != null)
+                          Builder(
+                            builder: (context) {
+                              // Use stored fixed neck position (never changes)
+                              final fixedNeckBottomY = _fixedNeckPosition!.dy;
+                              final fixedNeckX = _fixedNeckPosition!.dx;
+                              
+                              // Calculate current widget size
+                              final effectiveSize = _getEffectiveBalloonSize();
+                              // Widget size should match actual balloon size
+                              // Max radius is 33px (diameter 66px) + neck 15px + padding
+                              final baseSize = 50.0; // Base size for neck
+                              // Scale body diameter: volume 1.0 → 60px, volume 1.1 → 66px (10% more)
+                              final bodySize = 60.0 + (effectiveSize - 1.0) * 60.0; // Diameter scales from 60px to 66px
+                              final balloonSize = (baseSize + bodySize).clamp(50.0, 120.0); // Cap appropriately
+                              
+                              // Position widget so its bottom (neck) stays fixed
+                              // Neck is drawn at size.height - 2 in the painter
+                              // So: top + (balloonSize - 2) = fixedNeckBottomY
+                              // Therefore: top = fixedNeckBottomY - balloonSize + 2
+                              final top = fixedNeckBottomY - balloonSize + 35;
+                              
+                              // Horizontal position: centered on bottle opening (use current size so neck stays centered)
+                              // Neck is always at centerX of widget, so center widget on fixedNeckX
+                              final left = fixedNeckX - (balloonSize / 2); // Center horizontally based on current size
+                              
+                              return Positioned(
+                                left: left,
+                                top: top,
+                                child: _BalloonPlaceholder(size: effectiveSize),
+                              );
+                            },
                           ),
 
                         // Drop zones (only visible when dragging)
@@ -999,48 +1120,94 @@ class _BalloonPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final balloonSize = 40.0 + (size * 80.0);
+    // Base size accounts for neck, main body scales with volume
+    // Keep minimum size for neck visibility, body scales from there
+    // Widget size should match actual balloon size
+    final baseSize = 50.0; // Base size for neck
+    // Scale body diameter: volume 1.0 → 60px, volume 1.1 → 66px (10% more)
+    final bodySize = 60.0 + (size - 1.0) * 60.0; // Diameter scales from 60px to 66px
+    final balloonSize = (baseSize + bodySize).clamp(50.0, 120.0); // Cap appropriately
     return CustomPaint(
       size: Size(balloonSize, balloonSize),
-      painter: _BalloonPainter(volume: size),
+      painter: _BalloonPainter(volume: size, widgetSize: balloonSize),
     );
   }
 }
 
 class _BalloonPainter extends CustomPainter {
   final double volume;
+  final double widgetSize;
   
-  _BalloonPainter({required this.volume});
+  _BalloonPainter({required this.volume, required this.widgetSize});
   
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
     final centerX = size.width / 2;
-    final centerY = size.height / 2;
 
-    // Oblong/elliptical balloon shape - elongated vertically (taller than wide)
+    // Spherical balloon shape - use perfect oval/circle for main body
     final balloonPath = Path();
     
-    // Create oblong shape - taller vertically than wide horizontally
-    final radiusX = size.width * 0.35; // Horizontal radius (narrower)
-    final radiusY = size.height * 0.45; // Vertical radius (taller)
+    // Neck stays fixed size (attached to bottle), only body scales with volume
+    // Fixed neck dimensions
+    final neckWidth = 8.0; // Fixed neck width
+    final neckHeight = 15.0; // Fixed neck height
     
-    // Main oblong body (ellipse) - vertically elongated
+    // Main body radius scales with volume (only the body inflates)
+    // Cap maximum inflation to 10% above initial size
+    // Volume 1.0 (reference) → radius 30px
+    // Volume 1.1 (max) → radius 33px (10% more)
+    final baseRadius = 10.0; // Minimum radius when volume is small
+    final initialRadius = 30.0; // Radius at volume 1.0 (reference)
+    // Linear scaling: radius = initialRadius + (volume - 1.0) * scaleFactor
+    // At volume 1.1, we want radius = 33, so: 33 = 30 + (1.1 - 1.0) * scaleFactor
+    // scaleFactor = 3 / 0.1 = 30
+    final radiusX = (initialRadius + (volume - 1.0) * 30.0).clamp(baseRadius, initialRadius * 1.1);
+    final radiusY = radiusX; // Keep spherical
+    
+    // Calculate body center position (body sits above fixed neck)
+    // Neck is fixed at bottom, body center moves up as it grows
+    final neckBottomY = size.height - 2; // Bottom of neck (fixed)
+    final neckTopY = neckBottomY - neckHeight; // Top of neck (fixed)
+    
+    // Body center Y position - starts low when small, moves up as it grows
+    final bodyCenterY = neckTopY - radiusY - 5; // Body sits above neck
+    
+    // Main spherical body - perfect oval/circle (ensures round top, no triangle)
     balloonPath.addOval(Rect.fromCenter(
-      center: Offset(centerX, centerY - 5),
-      width: radiusX * 2, // Narrower width
-      height: radiusY * 2, // Taller height
+      center: Offset(centerX, bodyCenterY),
+      width: radiusX * 2,
+      height: radiusY * 2,
     ));
     
-    // Narrow neck at bottom connecting to bottle
-    balloonPath.lineTo(centerX, size.height - 8);
+    // Smoothly connect body to fixed neck at bottom
+    final ovalBottom = bodyCenterY + radiusY;
+    
+    // Create smooth transition from oval body to fixed neck
+    balloonPath.moveTo(centerX - radiusX * 0.15, ovalBottom);
+    balloonPath.quadraticBezierTo(
+      centerX - radiusX * 0.1,
+      neckTopY + 3,
+      centerX - neckWidth * 0.5,
+      neckTopY + 2,
+    );
+    // Fixed neck that extends down (doesn't scale)
+    balloonPath.lineTo(centerX - neckWidth * 0.5, neckBottomY);
+    balloonPath.lineTo(centerX + neckWidth * 0.5, neckBottomY);
+    balloonPath.lineTo(centerX + neckWidth * 0.5, neckTopY + 2);
+    balloonPath.quadraticBezierTo(
+      centerX + radiusX * 0.1,
+      neckTopY + 3,
+      centerX + radiusX * 0.15,
+      ovalBottom,
+    );
     balloonPath.close();
 
-    // Base gradient fill
+    // Base gradient fill - vertical (top to bottom) instead of diagonal
     final colorSwatch = Colors.red;
     final gradient = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
       colors: [
         colorSwatch.shade200,
         colorSwatch.shade300,
@@ -1053,15 +1220,15 @@ class _BalloonPainter extends CustomPainter {
     paint.style = PaintingStyle.fill;
     canvas.drawPath(balloonPath, paint);
 
-    // Highlight on upper left side (lighter)
+    // Highlight on upper left side (lighter) - use bodyCenterY
     paint.shader = null;
     paint.color = Colors.white.withValues(alpha: 0.4);
     paint.style = PaintingStyle.fill;
     final highlightPath = Path();
     highlightPath.addOval(Rect.fromCenter(
-      center: Offset(centerX - radiusX * 0.2, centerY - radiusY * 0.3),
-      width: size.width * 0.4,
-      height: size.height * 0.3,
+      center: Offset(centerX - radiusX * 0.2, bodyCenterY - radiusY * 0.3),
+      width: radiusX * 0.8,
+      height: radiusY * 0.6,
     ));
     canvas.drawPath(highlightPath, paint);
 
@@ -1071,29 +1238,42 @@ class _BalloonPainter extends CustomPainter {
     paint.strokeWidth = 2.0;
     canvas.drawPath(balloonPath, paint);
 
-    // Darker rolled rim at bottom (darker pink/red)
+    // Neck outline (fixed size, attached to bottle)
     paint.color = colorSwatch.shade900;
-    paint.style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, size.height - 5),
-          width: size.width * 0.12,
-          height: 8,
-        ),
-        const Radius.circular(4),
+    paint.strokeWidth = 2.5;
+    // Draw fixed neck outline
+    final neckPath = Path();
+    neckPath.moveTo(centerX - neckWidth * 0.5, neckTopY + 2);
+    neckPath.lineTo(centerX - neckWidth * 0.5, neckBottomY);
+    neckPath.lineTo(centerX + neckWidth * 0.5, neckBottomY);
+    neckPath.lineTo(centerX + neckWidth * 0.5, neckTopY + 2);
+    canvas.drawPath(neckPath, paint);
+    
+    // Open oval/opening - at the lowest part of the neck (bottom)
+    // Draw opening at the bottom where it attaches to bottle (fixed size)
+    paint.color = colorSwatch.shade700;
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 2.0;
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(centerX, neckBottomY - 1), // At the lowest part of neck
+        width: neckWidth * 1.5, // Fixed opening size relative to neck
+        height: 5,
       ),
       paint,
     );
     
-    // Small circle at the very bottom (opening)
-    paint.color = colorSwatch.shade900;
-    paint.style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(centerX, size.height - 1), 2.5, paint);
-    paint.style = PaintingStyle.stroke;
-    paint.strokeWidth = 1;
-    paint.color = Colors.black.withValues(alpha: 0.3);
-    canvas.drawCircle(Offset(centerX, size.height - 1), 2.5, paint);
+    // Inner edge of opening (shows it's open/hollow)
+    paint.color = colorSwatch.shade600;
+    paint.strokeWidth = 1.5;
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(centerX, neckBottomY - 1),
+        width: neckWidth * 1.1, // Fixed inner opening size
+        height: 3.5,
+      ),
+      paint,
+    );
   }
   
   @override
