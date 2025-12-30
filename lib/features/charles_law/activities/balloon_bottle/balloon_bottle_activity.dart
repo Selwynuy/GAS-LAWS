@@ -219,8 +219,8 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       case 'cup':
         if (_currentStep == 0) {
           final screenSize = MediaQuery.of(context).size;
-          // Center the cup on the table
-          final centerX = screenSize.width / 2;
+          // Position cup to the left to make room for container on the right
+          final centerX = screenSize.width * 0.35; // Moved left from center
           final centerY = screenSize.height * 0.4; // Center of table area
           setState(() {
             _cupPosition = Offset(centerX, centerY);
@@ -257,18 +257,8 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
           Future.delayed(const Duration(milliseconds: 300), () {
             _updateTemperatureFromState();
           });
-        } else if (_currentStep == 6 && _containerPlaced && _bottleInCup && _containerPosition != null) {
-          setState(() {
-            _bottlePosition = Offset(_containerPosition!.dx, _containerPosition!.dy - 60);
-            _bottleInCup = false;
-            _bottleTransferred = true;
-            _currentStep = 7;
-            dropped = true;
-          });
-          Future.delayed(const Duration(milliseconds: 300), () {
-            _updateTemperatureFromState();
-          });
         }
+        // Note: Transfer is now handled by the "Transfer Bottle" button, not drag-and-drop
         break;
 
       case 'balloon':
@@ -443,8 +433,6 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final tableCenterX = screenSize.width * 0.4;
-    final tableCenterY = screenSize.height * 0.35;
 
     return Scaffold(
       appBar: AppBar(
@@ -532,26 +520,16 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                         // Container
                         if (_containerPlaced && _containerPosition != null)
                           Positioned(
-                            left: _containerPosition!.dx - 40,
-                            top: _containerPosition!.dy - 40,
+                            left: _containerPosition!.dx - 80,
+                            top: _containerPosition!.dy - 80,
                             child: _SvgImageWidget(
-                              svgPath: _coldWaterPoured
-                                  ? 'assets/charles_law/container_cold_water.svg'
-                                  : 'assets/charles_law/container.png',
+                              svgPath: _bottleTransferred && _coldWaterPoured
+                                  ? 'assets/charles_law/container_cold_water_bottle.png'
+                                  : _coldWaterPoured
+                                      ? 'assets/charles_law/container_cold_water.png'
+                                      : 'assets/charles_law/container.png',
                               icon: Icons.square,
-                              size: 80,
-                            ),
-                          ),
-
-                        // Bottle (only show when transferred to container, not when in cup)
-                        if (_bottleTransferred && _bottlePosition != null)
-                          Positioned(
-                            left: _bottlePosition!.dx - 20,
-                            top: _bottlePosition!.dy - 50,
-                            child: _SvgImageWidget(
-                              svgPath: 'assets/charles_law/bottle.png',
-                              icon: Icons.water_drop,
-                              size: 40,
+                              size: 160,
                             ),
                           ),
 
@@ -559,7 +537,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                         if (_balloonOnBottle && _fixedNeckPosition != null)
                           Builder(
                             builder: (context) {
-                              // Use stored fixed neck position (never changes)
+                              // Use stored fixed neck position (updated when bottle is transferred)
                               final fixedNeckBottomY = _fixedNeckPosition!.dy;
                               final fixedNeckX = _fixedNeckPosition!.dx;
                               
@@ -576,7 +554,9 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                               // Neck is drawn at size.height - 2 in the painter
                               // So: top + (balloonSize - 2) = fixedNeckBottomY
                               // Therefore: top = fixedNeckBottomY - balloonSize + 2
-                              final top = fixedNeckBottomY - balloonSize + 35;
+                              // Adjust offset based on whether bottle is transferred (moved up)
+                              final offsetAdjustment = _bottleTransferred ? -15 : 35;
+                              final top = fixedNeckBottomY - balloonSize + offsetAdjustment;
                               
                               // Horizontal position: centered on bottle opening (use current size so neck stays centered)
                               // Neck is always at centerX of widget, so center widget on fixedNeckX
@@ -659,14 +639,14 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                             ),
                           ),
 
-                        // Container drop zone
-                        if (_currentStep == 4 && _balloonOnBottle && _draggingItem != null)
+                        // Container drop zone (beside the cup)
+                        if (_currentStep == 4 && _balloonOnBottle && _cupPosition != null && _draggingItem != null)
                           Positioned(
-                            left: tableCenterX + 100,
-                            top: tableCenterY - 100,
+                            left: _cupPosition!.dx + 80, // Position to the right of the cup (moved 100px left)
+                            top: _cupPosition!.dy - 100, // Align vertically with cup
                             child: _DropZone(
-                              width: 200,
-                              height: 200,
+                              width: 100,
+                              height: 100,
                               label: 'Place Container',
                               onAccept: (itemId, position) {
                                 if (itemId == 'container') {
@@ -693,20 +673,49 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                             ),
                           ),
 
-                        // Bottle transfer drop zone
-                        if (_currentStep == 6 && _containerPlaced && _containerPosition != null && _draggingItem != null)
+                        // Transfer bottle button
+                        if (_currentStep == 6 && _containerPlaced && _bottleInCup && _containerPosition != null)
                           Positioned(
-                            left: _containerPosition!.dx - 60,
-                            top: _containerPosition!.dy - 60,
-                            child: _DropZone(
-                              width: 120,
-                              height: 120,
-                              label: 'Transfer Bottle',
-                              onAccept: (itemId, position) {
-                                if (itemId == 'bottle') {
-                                  _onItemAccepted(itemId, _containerPosition!);
-                                }
+                            left: _containerPosition!.dx - 80,
+                            top: _containerPosition!.dy + 60,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                // Transfer bottle from cup to container
+                                setState(() {
+                                  _bottlePosition = Offset(_containerPosition!.dx, _containerPosition!.dy - 60);
+                                  _bottleInCup = false;
+                                  _bottleTransferred = true;
+                                  _currentStep = 7;
+                                  // Update balloon's fixed neck position to align with bottle opening in container
+                                  if (_balloonOnBottle && _fixedNeckPosition != null) {
+                                    // Bottle opening in container is at the top of the container image
+                                    // Container image top: _containerPosition!.dy - 80, size: 160
+                                    // Bottle opening is approximately 40px from top of container image
+                                    // Move balloon upward by reducing Y value significantly
+                                    final newNeckBottomY = _containerPosition!.dy - 80 + 40; // Moved up 50px
+                                    final newNeckX = _containerPosition!.dx; // Center of container (bottle opening)
+                                    _fixedNeckPosition = Offset(newNeckX, newNeckBottomY);
+                                  }
+                                });
+                                Future.delayed(const Duration(milliseconds: 300), () {
+                                  _updateTemperatureFromState();
+                                });
                               },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade700,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Transfer Bottle',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
 
