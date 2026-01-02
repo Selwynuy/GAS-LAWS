@@ -39,14 +39,18 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   double _temperatureCelsius = 20.0; // Room temperature
   static const double _roomTempC = 20.0;
   static const double _hotTempC = 80.0;
-  static const double _coldTempC = 5.0;
+  static const double _coldTempC = 2.0; // Ice water temperature (realistic ice water range)
   
   // Reference values for Charles Law calculation
   static const double _referenceTempK = 293.15; // 20°C in Kelvin
   static const double _referenceVolume = 1.0; // Normalized reference volume
   
+  // Track the inflated state in hot water (used as reference for cold water calculation)
+  double? _hotWaterVolume; // Volume when inflated in hot water
+  double? _hotWaterTempK; // Temperature in Kelvin when inflated in hot water
+  
   // Current volume (calculated from Charles Law)
-  double _currentVolume = _referenceVolume;
+  double _currentVolume = 0.0; // Start at 0% (balloon starts empty with no air)
 
 
   // Animation controller for smooth balloon size changes
@@ -100,8 +104,8 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
     ));
     
     _volumeAnimation = Tween<double>(
-      begin: _referenceVolume,
-      end: _referenceVolume,
+      begin: 0.0,
+      end: 0.0,
     ).animate(CurvedAnimation(
       parent: _animationController!,
       curve: Curves.easeInOut,
@@ -139,10 +143,43 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
 
   /// Calculate volume using Charles Law: V₁/T₁ = V₂/T₂
   /// Therefore: V₂ = V₁ × (T₂/T₁)
-  double _calculateVolume(double temperatureCelsius) {
+  /// When calculating cold water volume, use the hot water inflated state as reference
+  double _calculateVolume(double temperatureCelsius, {bool storeHotWaterRef = false}) {
     final temperatureK = _celsiusToKelvin(temperatureCelsius);
-    final newVolume = _referenceVolume * (temperatureK / _referenceTempK);
-    return newVolume.clamp(0.3, 1.1); // Clamp to max 10% above reference size
+    
+    // If we have hot water reference values and we're calculating for cold water, use them
+    if (_hotWaterVolume != null && _hotWaterTempK != null && 
+        _bottleTransferred && temperatureCelsius <= _coldTempC + 5) {
+      // Use hot water inflated state as reference for cold water calculation
+      // Since balloon starts with no air, it should deflate to near-empty (5%) in cold water
+      final calculatedVolume = _hotWaterVolume! * (temperatureK / _hotWaterTempK!);
+      // When reaching target cold temperature, ensure it deflates to 5% (near-empty, no initial air)
+      if (temperatureCelsius <= _coldTempC + 1.0) {
+        return 0.05; // Force to 5% at cold temperature (balloon had no initial air)
+      }
+      return calculatedVolume.clamp(0.05, 1.1);
+    }
+    
+    // Balloon starts empty (0%), calculate volume based on temperature
+    // Use room temperature as baseline - at room temp, volume is minimal
+    // As temperature increases above room temp, volume increases
+    // Calculate relative volume change from room temperature using Charles Law
+    // At room temp: ratio = 1.0, so volume stays near 0
+    // At hot temp: ratio > 1.0, so volume increases
+    final tempRatio = temperatureK / _referenceTempK;
+    // Scale so that at hot water temp (87°C = 360.15K), we get significant inflation
+    // Room temp (293.15K) ratio = 1.0, Hot (360.15K) ratio ≈ 1.23
+    // We want hot water to inflate to a visible size, so scale appropriately
+    final newVolume = (tempRatio - 1.0) * 4.0; // Scale factor to get good inflation at hot temp
+    
+    // Store unclamped hot water volume as reference when balloon is fully inflated in hot water
+    if (storeHotWaterRef && _bottleInCup && _hotWaterPoured && _balloonOnBottle && 
+        _hotWaterVolume == null && temperatureCelsius >= 85.0) {
+      _hotWaterVolume = newVolume.clamp(0.0, 1.1); // Store volume for cold water reference
+      _hotWaterTempK = temperatureK;
+    }
+    
+    return newVolume.clamp(0.0, 1.1); // Allow from 0% to 110%
   }
 
   /// Update temperature based on experiment state and animate volume change
@@ -155,24 +192,24 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
     double targetTemp = _roomTempC;
     
     if (_bottleInCup && _hotWaterPoured) {
-      targetTemp = 73.0; // Bottle reaches 73°C when placed in hot water
+      targetTemp = 87.0; // Bottle reaches 87°C when placed in hot water (hot but not near boiling)
     } else if (_bottleTransferred && _coldWaterPoured) {
       targetTemp = _coldTempC;
     }
 
-    // Start continuous temperature updates
-    _temperatureUpdateTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
+    // Immediately start temperature change and volume update
+    void updateTemperatureAndVolume() {
+      if (!mounted) return;
       
       if ((_temperatureCelsius - targetTemp).abs() > 0.1) {
         setState(() {
           _temperatureCelsius = _temperatureCelsius + (targetTemp - _temperatureCelsius) * 0.1;
         });
         
-        final targetVolume = _calculateVolume(_temperatureCelsius);
+        // Store hot water reference when in hot water state
+        final shouldStoreRef = _bottleInCup && _hotWaterPoured && _balloonOnBottle && 
+                               _hotWaterVolume == null && _temperatureCelsius >= 85.0;
+        final targetVolume = _calculateVolume(_temperatureCelsius, storeHotWaterRef: shouldStoreRef);
         
         // Remove old listener before recreating animation
         _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
@@ -191,12 +228,17 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
         _animationController!.forward(from: 0.0);
       } else {
         // Reached target temperature, stop timer
-        timer.cancel();
+        _temperatureUpdateTimer?.cancel();
         // Final update to ensure we're exactly at target
         setState(() {
           _temperatureCelsius = targetTemp;
         });
-        final targetVolume = _calculateVolume(_temperatureCelsius);
+        
+        // Store hot water reference when reaching hot water temperature
+        final shouldStoreRef = _bottleInCup && _hotWaterPoured && _balloonOnBottle && 
+                               _hotWaterVolume == null && targetTemp >= 85.0;
+        final targetVolume = _calculateVolume(_temperatureCelsius, storeHotWaterRef: shouldStoreRef);
+        
         _volumeAnimation?.removeListener(_onVolumeAnimationUpdate);
         _volumeAnimation = Tween<double>(
           begin: _currentVolume,
@@ -208,6 +250,18 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
         _volumeAnimation!.addListener(_onVolumeAnimationUpdate);
         _animationController!.forward(from: 0.0);
       }
+    }
+
+    // Start immediately to begin temperature change and balloon size adjustment
+    updateTemperatureAndVolume();
+
+    // Start continuous temperature updates
+    _temperatureUpdateTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      updateTemperatureAndVolume();
     });
   }
 
@@ -358,11 +412,13 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       _bottleTransferred = false;
       _experimentComplete = false;
       _temperatureCelsius = _roomTempC;
-      _currentVolume = _referenceVolume;
+      _currentVolume = 0.0; // Reset to 0% (empty balloon)
       _cupPosition = null;
       _bottlePosition = null;
       _containerPosition = null;
       _isInitialInflating = false;
+      _hotWaterVolume = null;
+      _hotWaterTempK = null;
       
       for (var item in _items) {
         item.used = false;
@@ -507,7 +563,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                         // Container
                         if (_containerPlaced && _containerPosition != null)
                           Positioned(
-                            left: _containerPosition!.dx - 80,
+                            left: _containerPosition!.dx - 40,
                             top: _containerPosition!.dy - 80,
                             child: _SvgImageWidget(
                               svgPath: _bottleTransferred && _coldWaterPoured
@@ -547,7 +603,8 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                               
                               // Horizontal position: centered on bottle opening (use current size so neck stays centered)
                               // Neck is always at centerX of widget, so center widget on fixedNeckX
-                              final left = fixedNeckX - (balloonSize / 2); // Center horizontally based on current size
+                              final offsetLeft = _bottleTransferred ? 36 : 0;
+                              final left = fixedNeckX - (balloonSize / 2 - offsetLeft); // Center horizontally based on current size
                               
                               return Positioned(
                                 left: left,
@@ -646,7 +703,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                         // Cold water drop zone
                         if (_currentStep == 5 && _containerPlaced && _containerPosition != null && _draggingItem != null)
                           Positioned(
-                            left: _containerPosition!.dx - 60,
+                            left: _containerPosition!.dx - 20,
                             top: _containerPosition!.dy - 60,
                             child: _DropZone(
                               width: 120,
@@ -684,6 +741,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                                     _fixedNeckPosition = Offset(newNeckX, newNeckBottomY);
                                   }
                                 });
+                                // Update temperature immediately to adjust balloon size
                                 Future.delayed(const Duration(milliseconds: 300), () {
                                   _updateTemperatureFromState();
                                 });
@@ -787,22 +845,24 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.purple.shade300),
-                          ),
-                          child: Text(
-                            'Volume: ${(_currentVolume * 100).toStringAsFixed(0)}%',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.purple,
+                        // Only show volume indicator when balloon is on the bottle
+                        if (_balloonOnBottle)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.purple.shade300),
+                            ),
+                            child: Text(
+                              'Volume: ${(_currentVolume * 100).toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.purple,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
