@@ -82,13 +82,15 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
   ColorFilter _getBackgroundColorFilter() {
     // Interpolate between cool (blue tint) and hot (orange/red tint)
     final tempRange = _maxFinalTempC - _minInitialTempC;
-    final tempProgress = (_finalTempC - _minInitialTempC) / tempRange;
+    final tempProgress = tempRange > 0 
+        ? ((_finalTempC - _minInitialTempC) / tempRange).clamp(0.0, 1.0)
+        : 0.0;
     
     // At 22°C: cool blue tint
     // At 45°C+: warm orange/red tint
-    final r = 1.0 + (tempProgress * 0.2); // Slight red increase
-    final g = 1.0 - (tempProgress * 0.1); // Slight green decrease
-    final b = 1.0 - (tempProgress * 0.3); // More blue decrease
+    final r = (1.0 + (tempProgress * 0.2)).clamp(0.0, 2.0); // Slight red increase
+    final g = (1.0 - (tempProgress * 0.1)).clamp(0.0, 2.0); // Slight green decrease
+    final b = (1.0 - (tempProgress * 0.3)).clamp(0.0, 2.0); // More blue decrease
     
     return ColorFilter.matrix([
       r, 0, 0, 0, 0,
@@ -227,7 +229,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
                 return Container(
                   width: 80,
                   height: 80,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.black,
                     shape: BoxShape.circle,
                   ),
@@ -262,14 +264,14 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
           ),
         ),
         
-        // Overlay Labels: V₁, T₁, T₂
+        // Overlay Labels: V₁, T₁, T₂, V₂
         Positioned(
-          top: 100,
-          right: 20,
+          top: 20,
+          left: 20,
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.blue.shade300),
             ),
@@ -302,6 +304,15 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
                     color: Colors.orange.shade700,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'V₂: ${_finalVolumeL.toStringAsFixed(1)} L',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _isBurstWarning() ? Colors.red.shade700 : Colors.green.shade700,
+                  ),
+                ),
               ],
             ),
           ),
@@ -317,123 +328,126 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
       margin: const EdgeInsets.all(8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.blue.shade300, width: 1.5),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'SIMULATION PANEL',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
-            ),
-          ),
-          const SizedBox(height: 8),
-          
-          // Initial Temp Slider (Early Morning Range)
-          Text(
-            'Initial Temp (°C) [Early Morning]: ${_initialTempC.toStringAsFixed(1)}',
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Slider(
-            value: _initialTempC.clamp(_minInitialTempC, _maxInitialTempC),
-            min: _minInitialTempC,
-            max: _maxInitialTempC,
-            divisions: ((_maxInitialTempC - _minInitialTempC) * 10).round(),
-            label: _initialTempC.toStringAsFixed(1),
-            onChanged: (value) {
-              setState(() {
-                _initialTempC = value.clamp(_minInitialTempC, _maxInitialTempC);
-                // Ensure final temp is always >= initial temp and within max range
-                _finalTempC = _finalTempC.clamp(_initialTempC, _maxFinalTempC);
-                _calculateVolume();
-              });
-              SoundService().playTouchSound();
-            },
-          ),
-          
-          const SizedBox(height: 4),
-          
-          // Final Temp Slider
-          Text(
-            'Final Temp (°C): ${_finalTempC.toStringAsFixed(1)}',
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Slider(
-            value: _finalTempC.clamp(_initialTempC, _maxFinalTempC),
-            min: _initialTempC, // Final temp must be >= initial temp
-            max: _maxFinalTempC,
-            divisions: ((_maxFinalTempC - _initialTempC) * 10).round().clamp(1, 1000),
-            label: _finalTempC.toStringAsFixed(1),
-            onChanged: (value) {
-              setState(() {
-                _finalTempC = value.clamp(_initialTempC, _maxFinalTempC);
-                _calculateVolume();
-              });
-              SoundService().playTouchSound();
-            },
-          ),
-          
-          const SizedBox(height: 8),
-          
-          // Result Box
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _isBurstWarning() 
-                  ? Colors.red.shade100 
-                  : Colors.green.shade100,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: _isBurstWarning() 
-                    ? Colors.red.shade400 
-                    : Colors.green.shade400, 
-                width: 1.5,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'SIMULATION PANEL',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
               ),
             ),
-            child: Column(
-              children: [
-                Text(
-                  _isBurstWarning() 
-                      ? '⚠️ BURST! ⚠️' 
-                      : 'ANSWER: V₂ = ${_finalVolumeL.toStringAsFixed(1)} L',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: _isBurstWarning() 
-                        ? Colors.red.shade900 
-                        : Colors.green.shade900,
-                  ),
-                  textAlign: TextAlign.center,
+            const SizedBox(height: 6),
+          
+            // Initial Temp Slider (Early Morning Range)
+            Text(
+              'Initial Temp (°C) [Early Morning]: ${_initialTempC.toStringAsFixed(1)}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Slider(
+              value: _initialTempC.clamp(_minInitialTempC, _maxInitialTempC),
+              min: _minInitialTempC,
+              max: _maxInitialTempC,
+              divisions: ((_maxInitialTempC - _minInitialTempC) * 10).round(),
+              label: _initialTempC.toStringAsFixed(1),
+              onChanged: (value) {
+                setState(() {
+                  _initialTempC = value.clamp(_minInitialTempC, _maxInitialTempC);
+                  // Ensure final temp is always >= initial temp and within max range
+                  _finalTempC = _finalTempC.clamp(_initialTempC, _maxFinalTempC);
+                  _calculateVolume();
+                });
+                SoundService().playTouchSound();
+              },
+            ),
+            
+            const SizedBox(height: 2),
+            
+            // Final Temp Slider
+            Text(
+              'Final Temp (°C): ${_finalTempC.toStringAsFixed(1)}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Slider(
+              value: _finalTempC.clamp(_initialTempC, _maxFinalTempC),
+              min: _initialTempC, // Final temp must be >= initial temp
+              max: _maxFinalTempC,
+              divisions: ((_maxFinalTempC - _initialTempC) * 10).round().clamp(1, 1000),
+              label: _finalTempC.toStringAsFixed(1),
+              onChanged: (value) {
+                setState(() {
+                  _finalTempC = value.clamp(_initialTempC, _maxFinalTempC);
+                  _calculateVolume();
+                });
+                SoundService().playTouchSound();
+              },
+            ),
+            
+            const SizedBox(height: 6),
+          
+            // Result Box
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: _isBurstWarning() 
+                    ? Colors.red.shade100 
+                    : Colors.green.shade100,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _isBurstWarning() 
+                      ? Colors.red.shade400 
+                      : Colors.green.shade400, 
+                  width: 1.5,
                 ),
-                if (_isBurstWarning())
-                  const SizedBox(height: 2),
-                if (_isBurstWarning())
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    'V₂ = ${_finalVolumeL.toStringAsFixed(1)} L\n(Exceeds safe limit!)',
+                    _isBurstWarning() 
+                        ? '⚠️ BURST! ⚠️' 
+                        : 'ANSWER: V₂ = ${_finalVolumeL.toStringAsFixed(1)} L',
                     style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _isBurstWarning() 
+                          ? Colors.red.shade900 
+                          : Colors.green.shade900,
                     ),
                     textAlign: TextAlign.center,
                   ),
-              ],
+                  if (_isBurstWarning())
+                    const SizedBox(height: 2),
+                  if (_isBurstWarning())
+                    Text(
+                      'V₂ = ${_finalVolumeL.toStringAsFixed(1)} L\n(Exceeds safe limit!)',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red.shade700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -446,7 +460,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.blue.shade300, width: 1),
       ),
@@ -505,7 +519,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
                       reservedSize: 20,
                       getTitlesWidget: (value, meta) {
                         return Text(
-                          '${value.toStringAsFixed(0)}',
+                          value.toStringAsFixed(0),
                           style: const TextStyle(
                             color: Colors.black87,
                             fontSize: 7,
@@ -528,7 +542,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
                       reservedSize: 28,
                       getTitlesWidget: (value, meta) {
                         return Text(
-                          '${value.toStringAsFixed(0)}',
+                          value.toStringAsFixed(0),
                           style: const TextStyle(
                             color: Colors.black87,
                             fontSize: 7,
@@ -577,7 +591,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
                   ),
                 ],
                 // Add label for P = Constant
-                extraLinesData: ExtraLinesData(
+                extraLinesData: const ExtraLinesData(
                   verticalLines: [],
                   horizontalLines: [],
                 ),
