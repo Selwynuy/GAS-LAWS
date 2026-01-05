@@ -1,0 +1,48 @@
+name: scuba_gas_laws_game
+description: A Flutter mobile app that simulates a scuba diving gas-laws game based on Boyle's Law.
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Optional but nice for nicer fonts/icons if you want to extend later.
+  cupertino_icons: ^1.0.8
+
+  # Optional: for the Volume vs Pressure graph.
+  fl_chart: ^0.69.0
+  
+  # Audio playback - using just_audio for better reliability
+  just_audio: ^0.9.36
+  
+  # Settings persistence
+  shared_preferences: ^2.2.2
+  
+  # SVG graphics support
+  flutter_svg: ^2.0.9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/Ocean_Background.png
+    - assets/Scuba_Diver.png
+    - assets/Lungs2.png
+    - assets/HomeScreen_Background.png
+    - assets/Succeed.png
+    - assets/Locked.png
+    - assets/Sounds/
+    - assets/charles_law/
+    - assets/charles_law_act2/
+
+
