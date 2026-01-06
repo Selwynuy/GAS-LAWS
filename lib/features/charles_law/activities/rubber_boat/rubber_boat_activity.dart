@@ -22,6 +22,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
   // V₁ = V₂ × T₁ / T₂ = 32.3 × 295.15 / 318.15 ≈ 29.95 L
   static const double _initialVolumeL = 30.0; // V₁ (approximately matches example)
   double _finalVolumeL = 30.0; // V₂ (calculated)
+  bool _showAnswer = false; // Whether to show the calculated answer
 
   // Constants
   // Initial temp range (early morning): 15-30°C, with 22°C in the middle
@@ -37,6 +38,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
     super.initState();
     // Ensure final temp is within valid range
     _finalTempC = _finalTempC.clamp(_initialTempC, _maxFinalTempC);
+    // Calculate volume for visual effects, but don't show answer yet
     _calculateVolume();
   }
 
@@ -62,14 +64,6 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
     return _finalVolumeL > _maxSafeVolumeL;
   }
 
-  /// Get the scale factor for boat (1.0 to ~1.1)
-  double _getBoatScale() {
-    // Scale from 1.0 at initial temp to 1.1 at max final temp
-    final tempRange = _maxFinalTempC - _initialTempC;
-    final tempProgress = (_finalTempC - _initialTempC) / tempRange.clamp(1.0, double.infinity);
-    return 1.0 + (tempProgress * 0.1).clamp(0.0, 0.1); // 1.0 to 1.1
-  }
-
   /// Get the scale factor for tire (more exaggerated, 1.0 to ~1.15)
   double _getTireScale() {
     // More exaggerated growth for tire
@@ -81,7 +75,7 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
   /// Get background color filter based on temperature
   ColorFilter _getBackgroundColorFilter() {
     // Interpolate between cool (blue tint) and hot (orange/red tint)
-    final tempRange = _maxFinalTempC - _minInitialTempC;
+    const tempRange = _maxFinalTempC - _minInitialTempC;
     final tempProgress = tempRange > 0 
         ? ((_finalTempC - _minInitialTempC) / tempRange).clamp(0.0, 1.0)
         : 0.0;
@@ -148,15 +142,15 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
         child: SafeArea(
           child: Column(
             children: [
-              // Top Section: Visual Stack with Graph overlay (75% of height)
+              // Top Section: Visual Stack with Graph overlay (55% of height)
               Expanded(
-                flex: 3,
+                flex: 11,
                 child: _buildVisualStack(),
               ),
               
-              // Bottom Section: Simulation Panel (25% of height, full width)
+              // Bottom Section: Simulation Panel (45% of height, full width)
               Expanded(
-                flex: 1,
+                flex: 7,
                 child: _buildSimulationPanel(),
               ),
             ],
@@ -215,8 +209,8 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
         
         // Tire Image (behind boat) - comes before boat in Stack to be behind it
         Positioned(
-          left: 20, // Position tire at the back (left side) of boat
-          bottom: 120, // Align with boat vertically
+          left: 120, // Position tire at the back (left side) of boat
+          bottom: 105, // Align with boat vertically
           child: AnimatedScale(
             scale: _getTireScale(),
             duration: const Duration(milliseconds: 300),
@@ -241,26 +235,22 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
         ),
         
         // Boat Image (in front of tire) - comes after tire in Stack to be in front
+        // Boat does not expand - only the tire expands
         Positioned(
           left: 50, // Move to the left
-          bottom: 100, // Move down (from bottom)
-          child: AnimatedScale(
-            scale: _getBoatScale(),
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            child: Image.asset(
-              'assets/charles_law_act2/boat.png',
-              width: 200,
-              height: 200,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 200,
-                  height: 200,
-                  color: Colors.brown.shade300,
-                  child: const Icon(Icons.directions_boat, size: 100),
-                );
-              },
-            ),
+          bottom: 40, // Move down (from bottom)
+          child: Image.asset(
+            'assets/charles_law_act2/boat.png',
+            width: 200,
+            height: 200,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: 200,
+                height: 200,
+                color: Colors.brown.shade300,
+                child: const Icon(Icons.directions_boat, size: 100),
+              );
+            },
           ),
         ),
         
@@ -302,15 +292,6 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.orange.shade700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'V₂: ${_finalVolumeL.toStringAsFixed(1)} L',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: _isBurstWarning() ? Colors.red.shade700 : Colors.green.shade700,
                   ),
                 ),
               ],
@@ -366,7 +347,8 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
                   _initialTempC = value.clamp(_minInitialTempC, _maxInitialTempC);
                   // Ensure final temp is always >= initial temp and within max range
                   _finalTempC = _finalTempC.clamp(_initialTempC, _maxFinalTempC);
-                  _calculateVolume();
+                  _calculateVolume(); // Update visuals
+                  _showAnswer = false; // Hide answer when sliders change
                 });
                 SoundService().playTouchSound();
               },
@@ -391,7 +373,8 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
               onChanged: (value) {
                 setState(() {
                   _finalTempC = value.clamp(_initialTempC, _maxFinalTempC);
-                  _calculateVolume();
+                  _calculateVolume(); // Update visuals
+                  _showAnswer = false; // Hide answer when sliders change
                 });
                 SoundService().playTouchSound();
               },
@@ -399,7 +382,39 @@ class _RubberBoatActivityState extends State<RubberBoatActivity> {
             
             const SizedBox(height: 6),
           
-            // Result Box
+            // Calculate Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _calculateVolume();
+                    _showAnswer = true;
+                  });
+                  SoundService().playTouchSound();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Calculate V₂',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 6),
+          
+            // Result Box (only show if answer is calculated)
+            if (_showAnswer)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
