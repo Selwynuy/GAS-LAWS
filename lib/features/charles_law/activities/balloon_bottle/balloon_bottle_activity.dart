@@ -56,7 +56,6 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
   // Animation controller for smooth balloon size changes
   AnimationController? _animationController;
   Animation<double>? _volumeAnimation;
-  AnimationController? _steamAnimationController;
   
   // Initial inflation animation (when balloon is first placed)
   AnimationController? _initialInflationController;
@@ -84,11 +83,6 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    
-    _steamAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat();
     
     _initialInflationController = AnimationController(
       vsync: this,
@@ -133,7 +127,6 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
     _initialInflationAnimation?.removeListener(() {});
     _temperatureUpdateTimer?.cancel();
     _animationController?.dispose();
-    _steamAnimationController?.dispose();
     _initialInflationController?.dispose();
     super.dispose();
   }
@@ -549,15 +542,12 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                             ),
                           ),
 
-                        // Hot water steam
-                        if (_hotWaterPoured && 
-                            _bottleInCup && 
-                            _cupPosition != null &&
-                            _steamAnimationController != null)
+                        // Hot water steam (shows when hot water is poured, continues even after bottle transfer)
+                        if (_hotWaterPoured && _cupPosition != null)
                           Positioned(
                             left: _cupPosition!.dx - 20,
-                            top: _cupPosition!.dy - (_bottleInCup ? 160 : 90), // Adjusted for moved-up combined image
-                            child: _SteamWidget(controller: _steamAnimationController!),
+                            top: _cupPosition!.dy - (_bottleInCup ? 160 : 90), // Adjusted for moved-up combined image (160 when bottle in cup, 90 when just cup with hot water)
+                            child: const _SteamWidget(),
                           ),
 
                         // Container
@@ -588,7 +578,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                               final effectiveSize = _getEffectiveBalloonSize();
                               // Widget size should match actual balloon size
                               // Max radius is 33px (diameter 66px) + neck 15px + padding
-                              final baseSize = 50.0; // Base size for neck
+                              const baseSize = 50.0; // Base size for neck
                               // Scale body diameter: volume 1.0 → 60px, volume 1.1 → 66px (10% more)
                               final bodySize = 60.0 + (effectiveSize - 1.0) * 60.0; // Diameter scales from 60px to 66px
                               final balloonSize = (baseSize + bodySize).clamp(50.0, 120.0); // Cap appropriately
@@ -721,7 +711,7 @@ class _BalloonBottleActivityState extends State<BalloonBottleActivity>
                         if (_currentStep == 6 && _containerPlaced && _bottleInCup && _containerPosition != null)
                           Positioned(
                             left: _containerPosition!.dx - 80,
-                            top: _containerPosition!.dy + 60,
+                            top: _containerPosition!.dy + 100,
                             child: ElevatedButton(
                               onPressed: () {
                                 // Transfer bottle from cup to container
@@ -966,7 +956,7 @@ class _ItemShowcasePanel extends StatelessWidget {
                 // Calculate item size based on available space
                 final itemCount = visibleItems.length;
                 final availableHeight = constraints.maxHeight;
-                final headerHeight = 24.0;
+                const headerHeight = 24.0;
                 final totalPadding = (itemCount - 1) * 4.0; // vertical padding between items
                 final itemHeight = ((availableHeight - headerHeight - totalPadding) / itemCount).clamp(40.0, 48.0);
                 
@@ -1184,7 +1174,7 @@ class _BalloonPlaceholder extends StatelessWidget {
     // Base size accounts for neck, main body scales with volume
     // Keep minimum size for neck visibility, body scales from there
     // Widget size should match actual balloon size
-    final baseSize = 50.0; // Base size for neck
+    const baseSize = 50.0; // Base size for neck
     // Scale body diameter: volume 1.0 → 60px, volume 1.1 → 66px (10% more)
     final bodySize = 60.0 + (size - 1.0) * 60.0; // Diameter scales from 60px to 66px
     final balloonSize = (baseSize + bodySize).clamp(50.0, 120.0); // Cap appropriately
@@ -1211,15 +1201,15 @@ class _BalloonPainter extends CustomPainter {
     
     // Neck stays fixed size (attached to bottle), only body scales with volume
     // Fixed neck dimensions
-    final neckWidth = 8.0; // Fixed neck width
-    final neckHeight = 15.0; // Fixed neck height
+    const neckWidth = 8.0; // Fixed neck width
+    const neckHeight = 15.0; // Fixed neck height
     
     // Main body radius scales with volume (only the body inflates)
     // Cap maximum inflation to 10% above initial size
     // Volume 1.0 (reference) → radius 30px
     // Volume 1.1 (max) → radius 33px (10% more)
-    final baseRadius = 10.0; // Minimum radius when volume is small
-    final initialRadius = 30.0; // Radius at volume 1.0 (reference)
+    const baseRadius = 10.0; // Minimum radius when volume is small
+    const initialRadius = 30.0; // Radius at volume 1.0 (reference)
     // Linear scaling: radius = initialRadius + (volume - 1.0) * scaleFactor
     // At volume 1.1, we want radius = 33, so: 33 = 30 + (1.1 - 1.0) * scaleFactor
     // scaleFactor = 3 / 0.1 = 30
@@ -1265,7 +1255,7 @@ class _BalloonPainter extends CustomPainter {
     balloonPath.close();
 
     // Base gradient fill - vertical (top to bottom) instead of diagonal
-    final colorSwatch = Colors.red;
+    const colorSwatch = Colors.red;
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -1341,80 +1331,341 @@ class _BalloonPainter extends CustomPainter {
   bool shouldRepaint(_BalloonPainter oldDelegate) => oldDelegate.volume != volume;
 }
 
-/// Steam animation widget
-class _SteamWidget extends StatelessWidget {
-  final AnimationController controller;
+/// Steam animation widget with independent particles
+class _SteamWidget extends StatefulWidget {
+  const _SteamWidget();
 
-  const _SteamWidget({required this.controller});
+  @override
+  State<_SteamWidget> createState() => _SteamWidgetState();
+}
+
+class _SteamWidgetState extends State<_SteamWidget> with TickerProviderStateMixin {
+  final List<_SteamParticle> _particles = [];
+  static const int _maxParticles = 8;
+  Timer? _spawnTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeParticles();
+    _startSpawning();
+  }
+
+  void _initializeParticles() {
+    final random = DateTime.now().millisecondsSinceEpoch;
+    for (int i = 0; i < _maxParticles; i++) {
+      // Each particle gets unique random values
+      final seed = (random + i * 1000) % 10000;
+      final duration = 1800.0 + (seed % 1200); // Random duration between 1800-3000ms
+      final xOffset = (seed % 35 - 17.5).toDouble(); // Random X offset between -17.5 to 17.5
+      
+      final controller = AnimationController(
+        vsync: this,
+        duration: Duration(milliseconds: duration.toInt()),
+      );
+      
+      _particles.add(_SteamParticle(
+        controller: controller,
+        xOffset: xOffset,
+        size: 3.0 + (seed % 6), // Random size between 3-9
+      ));
+    }
+  }
+
+  void _startSpawning() {
+    void spawnNext() {
+      if (!mounted) return;
+      
+      // Find particles that are not currently animating
+      final availableParticles = _particles.where((p) => !p.controller.isAnimating).toList();
+      
+      if (availableParticles.isNotEmpty) {
+        // Pick a random available particle
+        final random = DateTime.now().millisecondsSinceEpoch;
+        final particle = availableParticles[random % availableParticles.length];
+        
+        // Start the particle animation
+        particle.controller.forward(from: 0.0).then((_) {
+          if (mounted) {
+            particle.controller.reset();
+          }
+        });
+      }
+      
+      // Schedule next spawn with random delay (200-600ms)
+      final randomDelay = 200 + (DateTime.now().millisecondsSinceEpoch % 400);
+      _spawnTimer = Timer(Duration(milliseconds: randomDelay), spawnNext);
+    }
+    
+    // Start spawning immediately
+    spawnNext();
+  }
+
+  @override
+  void dispose() {
+    _spawnTimer?.cancel();
+    for (var particle in _particles) {
+      particle.controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
+    // Listen to all particle controllers for repaints
+    return ListenableBuilder(
+      listenable: Listenable.merge(_particles.map((p) => p.controller)),
       builder: (context, child) {
         return CustomPaint(
           size: const Size(40, 60),
-          painter: _SteamPainter(progress: controller.value),
+          painter: _SteamPainter(particles: _particles),
         );
       },
     );
   }
 }
 
-class _SteamPainter extends CustomPainter {
-  final double progress;
+class _SteamParticle {
+  final AnimationController controller;
+  final double xOffset;
+  final double size;
 
-  _SteamPainter({required this.progress});
+  _SteamParticle({
+    required this.controller,
+    required this.xOffset,
+    required this.size,
+  });
+}
+
+class _SteamPainter extends CustomPainter {
+  final List<_SteamParticle> particles;
+
+  _SteamPainter({required this.particles});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final offsetY = progress * size.height;
-    final opacity = (0.8 - progress * 0.5).clamp(0.3, 0.8);
+    for (var particle in particles) {
+      if (!particle.controller.isAnimating && particle.controller.value == 0) {
+        continue; // Skip particles that haven't started
+      }
 
-    // Draw multiple steam particles with varying sizes
-    for (int i = 0; i < 5; i++) {
-      final x = size.width * (0.15 + i * 0.175);
-      final y = size.height - offsetY + (i * 8.0);
-      final particleSize = 4.0 + i * 1.5;
-      final particleOpacity = opacity * (1.0 - i * 0.15);
+      final progress = particle.controller.value;
+      final offsetY = progress * size.height;
+      final opacity = (0.8 - progress * 0.6).clamp(0.2, 0.8);
+      
+      // Random X position with slight horizontal drift
+      final baseX = size.width / 2 + particle.xOffset;
+      final x = baseX + (progress - 0.5) * 5.0; // Slight horizontal drift
+      final y = size.height - offsetY;
       
       // Outer glow
       final glowPaint = Paint()
         ..style = PaintingStyle.fill
-        ..color = Colors.white.withOpacity(particleOpacity * 0.3);
+        ..color = Colors.white.withOpacity(opacity * 0.3);
       
       canvas.drawCircle(
         Offset(x, y),
-        particleSize + 2,
+        particle.size + 2,
         glowPaint,
       );
       
       // Main particle
       final paint = Paint()
         ..style = PaintingStyle.fill
-        ..color = Colors.white.withOpacity(particleOpacity);
+        ..color = Colors.white.withOpacity(opacity);
       
       canvas.drawCircle(
         Offset(x, y),
-        particleSize,
+        particle.size,
         paint,
       );
       
       // Inner highlight
       final highlightPaint = Paint()
         ..style = PaintingStyle.fill
-        ..color = Colors.white.withOpacity(particleOpacity * 0.6);
+        ..color = Colors.white.withOpacity(opacity * 0.6);
       
       canvas.drawCircle(
-        Offset(x - particleSize * 0.3, y - particleSize * 0.3),
-        particleSize * 0.4,
+        Offset(x - particle.size * 0.3, y - particle.size * 0.3),
+        particle.size * 0.4,
         highlightPaint,
       );
     }
   }
 
   @override
-  bool shouldRepaint(_SteamPainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(_SteamPainter oldDelegate) => true; // Always repaint for smooth animation
+}
+
+/// Cold water condensation effect widget
+class _ColdWaterEffectWidget extends StatefulWidget {
+  const _ColdWaterEffectWidget();
+
+  @override
+  State<_ColdWaterEffectWidget> createState() => _ColdWaterEffectWidgetState();
+}
+
+class _ColdWaterEffectWidgetState extends State<_ColdWaterEffectWidget> with TickerProviderStateMixin {
+  final List<_CondensationParticle> _particles = [];
+  static const int _maxParticles = 6;
+  Timer? _spawnTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeParticles();
+    _startSpawning();
+  }
+
+  void _initializeParticles() {
+    final random = DateTime.now().millisecondsSinceEpoch;
+    for (int i = 0; i < _maxParticles; i++) {
+      // Each particle gets unique random values
+      final seed = (random + i * 1000) % 10000;
+      final duration = 2000.0 + (seed % 1500); // Random duration between 2000-3500ms (slower than steam)
+      final xOffset = (seed % 50 - 25).toDouble(); // Random X offset between -25 to 25
+      
+      final controller = AnimationController(
+        vsync: this,
+        duration: Duration(milliseconds: duration.toInt()),
+      );
+      
+      _particles.add(_CondensationParticle(
+        controller: controller,
+        xOffset: xOffset,
+        size: 2.0 + (seed % 5), // Random size between 2-7 (smaller than steam)
+        startY: (seed % 30).toDouble(), // Random starting Y position
+      ));
+    }
+  }
+
+  void _startSpawning() {
+    void spawnNext() {
+      if (!mounted) return;
+      
+      // Find particles that are not currently animating
+      final availableParticles = _particles.where((p) => !p.controller.isAnimating).toList();
+      
+      if (availableParticles.isNotEmpty) {
+        // Pick a random available particle
+        final random = DateTime.now().millisecondsSinceEpoch;
+        final particle = availableParticles[random % availableParticles.length];
+        
+        // Start the particle animation
+        particle.controller.forward(from: 0.0).then((_) {
+          if (mounted) {
+            particle.controller.reset();
+          }
+        });
+      }
+      
+      // Schedule next spawn with random delay (300-800ms, slower than steam)
+      final randomDelay = 300 + (DateTime.now().millisecondsSinceEpoch % 500);
+      _spawnTimer = Timer(Duration(milliseconds: randomDelay), spawnNext);
+    }
+    
+    // Start spawning immediately
+    spawnNext();
+  }
+
+  @override
+  void dispose() {
+    _spawnTimer?.cancel();
+    for (var particle in _particles) {
+      particle.controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen to all particle controllers for repaints
+    return ListenableBuilder(
+      listenable: Listenable.merge(_particles.map((p) => p.controller)),
+      builder: (context, child) {
+        return CustomPaint(
+          size: const Size(50, 80),
+          painter: _CondensationPainter(particles: _particles),
+        );
+      },
+    );
+  }
+}
+
+class _CondensationParticle {
+  final AnimationController controller;
+  final double xOffset;
+  final double size;
+  final double startY;
+
+  _CondensationParticle({
+    required this.controller,
+    required this.xOffset,
+    required this.size,
+    required this.startY,
+  });
+}
+
+class _CondensationPainter extends CustomPainter {
+  final List<_CondensationParticle> particles;
+
+  _CondensationPainter({required this.particles});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var particle in particles) {
+      if (!particle.controller.isAnimating && particle.controller.value == 0) {
+        continue; // Skip particles that haven't started
+      }
+
+      final progress = particle.controller.value;
+      // Condensation appears around the container sides, moving upward slowly
+      final offsetY = progress * size.height * 0.6; // Only move up 60% of height
+      final opacity = (0.7 - progress * 0.5).clamp(0.2, 0.7);
+      
+      // Random X position around container sides
+      final baseX = size.width / 2 + particle.xOffset;
+      final x = baseX + (progress - 0.5) * 3.0; // Less horizontal drift than steam
+      final y = particle.startY + offsetY;
+      
+      // Blue-tinted condensation effect (colder appearance)
+      // Outer glow (light blue)
+      final glowPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.blue.shade100.withOpacity(opacity * 0.4);
+      
+      canvas.drawCircle(
+        Offset(x, y),
+        particle.size + 1.5,
+        glowPaint,
+      );
+      
+      // Main particle (blue-white)
+      final paint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.blue.shade50.withOpacity(opacity);
+      
+      canvas.drawCircle(
+        Offset(x, y),
+        particle.size,
+        paint,
+      );
+      
+      // Inner highlight (brighter blue-white)
+      final highlightPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.white.withOpacity(opacity * 0.7);
+      
+      canvas.drawCircle(
+        Offset(x - particle.size * 0.2, y - particle.size * 0.2),
+        particle.size * 0.3,
+        highlightPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CondensationPainter oldDelegate) => true; // Always repaint for smooth animation
 }
 
 class _DropZone extends StatefulWidget {
