@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../../core/services/sound_service.dart';
 
@@ -8,6 +9,7 @@ class ActionButton extends StatefulWidget {
   final Color color;
   final bool isPrimary;
   final bool isSecondary;
+  final bool allowHold; // If false, only triggers on single click
 
   const ActionButton({
     super.key,
@@ -16,6 +18,7 @@ class ActionButton extends StatefulWidget {
     required this.color,
     this.isPrimary = false,
     this.isSecondary = false,
+    this.allowHold = true,
   });
 
   @override
@@ -26,6 +29,8 @@ class _ActionButtonState extends State<ActionButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  Timer? _holdTimer;
+  bool _isHeld = false;
 
   @override
   void initState() {
@@ -41,6 +46,7 @@ class _ActionButtonState extends State<ActionButton>
 
   @override
   void dispose() {
+    _holdTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -48,14 +54,33 @@ class _ActionButtonState extends State<ActionButton>
   void _handleTapDown(TapDownDetails details) {
     SoundService().playTouchSound();
     _controller.forward();
+    _isHeld = true;
+    
+    // Immediate action on press
+    widget.onPressed();
+    
+    // Start repeating timer only if hold is allowed
+    if (widget.allowHold) {
+      _holdTimer?.cancel();
+      _holdTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        if (_isHeld && mounted) {
+          widget.onPressed();
+        } else {
+          timer.cancel();
+        }
+      });
+    }
   }
 
   void _handleTapUp(TapUpDetails details) {
+    _isHeld = false;
+    _holdTimer?.cancel();
     _controller.reverse();
-    widget.onPressed();
   }
 
   void _handleTapCancel() {
+    _isHeld = false;
+    _holdTimer?.cancel();
     _controller.reverse();
   }
 

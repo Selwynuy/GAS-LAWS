@@ -90,49 +90,79 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
       ..forward();
   }
 
+  void _animateToDepthRapid(double newDepth) {
+    // For rapid updates (holding), use very short animation for smooth motion
+    _targetDepth = newDepth;
+    _controller.duration = const Duration(milliseconds: 100);
+    _depthAnimation = Tween<double>(
+      begin: _state.depthMeters,
+      end: _targetDepth,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.linear))
+      ..addListener(() {
+        setState(() {
+          _state.setDepth(_depthAnimation.value);
+          _addGraphPoint();
+        });
+      });
+    _controller
+      ..reset()
+      ..forward();
+  }
+
   void _onAscendSlowly() {
     setState(() {
       _state.consumeOxygen(amount: 0.001); // Consume once per action
     });
-    _animateToDepth(DivingPhysicsService.ascendDepthStep(_state.depthMeters));
+    final newDepth = DivingPhysicsService.ascendDepthStep(_state.depthMeters);
+    
+    // If animation is running (button being held), use rapid smooth animation
+    if (_controller.isAnimating) {
+      _animateToDepthRapid(newDepth);
+    } else {
+      _animateToDepth(newDepth);
+    }
   }
 
   void _onDescend() {
     setState(() {
       _state.consumeOxygen(amount: 0.001); // Consume once per action
     });
-    _animateToDepth(DivingPhysicsService.descendDepthStep(_state.depthMeters));
+    final newDepth = DivingPhysicsService.descendDepthStep(_state.depthMeters);
+    
+    // If animation is running (button being held), use rapid smooth animation
+    if (_controller.isAnimating) {
+      _animateToDepthRapid(newDepth);
+    } else {
+      _animateToDepth(newDepth);
+    }
   }
 
   void _onEmergencyAscent() {
-    // Delay both the animation and warning to let button animation complete
-    Future.microtask(() {
+    setState(() {
+      _state.consumeOxygen(amount: 0.001); // Consume once per action
+    });
+    final newDepth = DivingPhysicsService.emergencyAscentDepth(_state.depthMeters);
+    
+    // Show flashing warning
+    setState(() {
+      _showEmergencyWarning = true;
+    });
+    // Start flashing animation
+    _warningController.repeat(reverse: true);
+    
+    // Hide warning after 4 seconds
+    Future.delayed(const Duration(seconds: 4), () {
       if (mounted) {
         setState(() {
-          _state.consumeOxygen(amount: 0.001); // Consume once per action
+          _showEmergencyWarning = false;
         });
-        // Start emergency ascent
-        _animateToDepth(DivingPhysicsService.emergencyAscentDepth(_state.depthMeters));
-        
-        // Show flashing warning
-        setState(() {
-          _showEmergencyWarning = true;
-        });
-        // Start flashing animation
-        _warningController.repeat(reverse: true);
-        
-        // Hide warning after 4 seconds
-        Future.delayed(const Duration(seconds: 4), () {
-          if (mounted) {
-            setState(() {
-              _showEmergencyWarning = false;
-            });
-            _warningFlashController?.stop();
-            _warningFlashController?.reset();
-          }
-        });
+        _warningFlashController?.stop();
+        _warningFlashController?.reset();
       }
     });
+    
+    // Emergency ascent is always a single dramatic action
+    _animateToDepth(newDepth);
   }
 
   void _onExhale() {
@@ -502,6 +532,7 @@ class _ScubaDivingActivityState extends State<ScubaDivingActivity>
                                   label: 'EMERGENCY ASCENT',
                                   onPressed: _onEmergencyAscent,
                                   color: Colors.lightBlue,
+                                  allowHold: false, // Single click only
                                 ),
                               ),
                             ],
