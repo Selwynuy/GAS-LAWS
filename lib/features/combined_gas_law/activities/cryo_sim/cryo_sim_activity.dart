@@ -1128,18 +1128,23 @@ class _CoolingSmokePainter extends CustomPainter {
       final smokePaint = Paint()
         ..style = PaintingStyle.fill;
       
-      // Main smoke wisp (sky blue, like cool air)
-      smokePaint.color = Colors.lightBlue.withOpacity(opacity * 0.7);
+      // Sky blue color (#87CEEB)
+      const skyBlue = Color(0xFF87CEEB);
+      const lightSkyBlue = Color(0xFFB0E0E6);
+      const paleSkyBlue = Color(0xFFE0F6FF);
+      
+      // Main smoke wisp (sky blue)
+      smokePaint.color = paleSkyBlue.withOpacity(opacity * 0.7);
       canvas.drawCircle(Offset(x, y), currentSize, smokePaint);
       
       // Additional wisps for more realistic smoke effect
-      smokePaint.color = Colors.lightBlue.shade200.withOpacity(opacity * 0.5);
+      smokePaint.color = lightSkyBlue.withOpacity(opacity * 0.5);
       canvas.drawCircle(Offset(x - currentSize * 0.3, y - currentSize * 0.2), currentSize * 0.7, smokePaint);
       canvas.drawCircle(Offset(x + currentSize * 0.3, y - currentSize * 0.2), currentSize * 0.7, smokePaint);
       canvas.drawCircle(Offset(x, y - currentSize * 0.4), currentSize * 0.6, smokePaint);
       
       // Outer glow for cool air effect
-      smokePaint.color = Colors.lightBlue.shade100.withOpacity(opacity * 0.3);
+      smokePaint.color = skyBlue.withOpacity(opacity * 0.3);
       canvas.drawCircle(Offset(x, y), currentSize * 1.3, smokePaint);
     }
   }
