@@ -30,6 +30,7 @@ class _CryoSimActivityState extends State<CryoSimActivity> with TickerProviderSt
 
   bool _showAnswer = false;
   bool _sidebarOpen = false; // Toggle for sidebar
+  int _currentStep = 0; // Current instruction step (0-5)
 
   // Slider ranges
   static const double _minPressure = 50.0;
@@ -65,11 +66,12 @@ class _CryoSimActivityState extends State<CryoSimActivity> with TickerProviderSt
 
   /// Calculate T2 using Combined Gas Law: P₁V₁/T₁ = P₂V₂/T₂
   /// Therefore: T₂ = (P₂ × V₂ × T₁) / (P₁ × V₁)
+  /// Note: This calculates T2 internally but doesn't show the answer until CALCULATE is clicked
   void _calculateT2() {
     if (_p1 > 0 && _v1 > 0 && _t1Kelvin > 0 && _p2 > 0 && _v2 > 0) {
       setState(() {
         _t2Kelvin = (_p2 * _v2 * _t1Kelvin) / (_p1 * _v1);
-        _showAnswer = true;
+        // Don't set _showAnswer here - only show when button is clicked
       });
     }
   }
@@ -229,10 +231,10 @@ class _CryoSimActivityState extends State<CryoSimActivity> with TickerProviderSt
                 title: "FINAL STATE",
                 p: _p2,
                 v: _v2,
-                t: _t2Kelvin,
-                tempCelsius: _t2Celsius,
+                t: _showAnswer ? _t2Kelvin : null,
+                tempCelsius: _showAnswer ? _t2Celsius : null,
                 color: Colors.lightBlue.shade400,
-                showUnknown: _t2Kelvin == null,
+                showUnknown: !_showAnswer,
                 isSmallScreen: false,
               ),
             ),
@@ -331,6 +333,13 @@ class _CryoSimActivityState extends State<CryoSimActivity> with TickerProviderSt
                   ),
                 ),
               ),
+            // Instructions overlay (bottom)
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 8,
+              child: _buildInstructions(),
+            ),
           ],
         ),
       ),
@@ -421,26 +430,16 @@ class _CryoSimActivityState extends State<CryoSimActivity> with TickerProviderSt
                   },
                 ),
               ),
-              // Cooling bubbles/fog effect (only when cooling)
-              // Container box - visible border to show bubble area boundaries
-              if (_isCooling())
+              // Cooling smoke effect (only when answer is shown AND cooling occurs)
+              if (_showAnswer && _isCooling())
                 Positioned(
                   // Adjust these values to position the bubble area
                   left: constraints.maxWidth * 0.3,   // 20% from left
                   top: constraints.maxHeight * 0.4,   // 30% from top
                   width: constraints.maxWidth * 0.18,  // 30% of previous 60% width (0.6 * 0.3)
                   height: constraints.maxHeight * 0.15, // 30% of previous 50% height (0.5 * 0.3)
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.yellow,
-                        width: 3,
-                        style: BorderStyle.solid,
-                      ),
-                    ),
-                    child: _CoolingSmokeWidget(
-                      coolingIntensity: _getCoolingIntensity(),
-                    ),
+                  child: _CoolingSmokeWidget(
+                    coolingIntensity: _getCoolingIntensity(),
                   ),
                 ),
             ],
@@ -760,7 +759,10 @@ class _CryoSimActivityState extends State<CryoSimActivity> with TickerProviderSt
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () {
-              _calculateT2();
+              setState(() {
+                _calculateT2();
+                _showAnswer = true;
+              });
               SoundService().playTouchSound();
             },
             style: ElevatedButton.styleFrom(
@@ -802,6 +804,148 @@ class _CryoSimActivityState extends State<CryoSimActivity> with TickerProviderSt
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildInstructions() {
+    final instructions = [
+      'Observe the Initial State: The refrigerant gas is at high pressure (450 kPa), small volume (0.050 L), and warm temperature (30.0°C) before passing through the expansion valve.',
+      'Observe the Final State: After expansion, the pressure drops to 120 kPa and volume increases to 0.150 L. The final temperature (T₂) is unknown and needs to be calculated.',
+      'Open the Parameters sidebar by tapping the menu icon (☰) in the top-right corner to adjust P₁, V₁, T₁, P₂, or V₂ if needed.',
+      'Click the "CALCULATE T2" button to determine the final temperature using the Combined Gas Law: P₁V₁/T₁ = P₂V₂/T₂.',
+      'Observe the Result: If T₂ < T₁, cooling occurs and you will see sky blue smoke inside the refrigerator, demonstrating the cooling effect. The greater the temperature drop, the more intense the smoke effect.',
+      'Analyze the P-V Diagram: The diagram shows the pressure-volume relationship. The transition from initial to final state demonstrates how pressure and volume changes lead to temperature changes.',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.cyan.shade700, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 6,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.cyan.shade400, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Step-by-Step Instructions',
+                  style: TextStyle(
+                    color: Colors.cyan.shade400,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Text(
+                'Step ${_currentStep + 1} of ${instructions.length}',
+                style: TextStyle(
+                  color: Colors.cyan.shade300,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Current step display
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.cyan.shade700,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    '${_currentStep + 1}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  instructions[_currentStep],
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Navigation buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _currentStep > 0
+                    ? () {
+                        setState(() {
+                          _currentStep--;
+                        });
+                        SoundService().playTouchSound();
+                      }
+                    : null,
+                icon: const Icon(Icons.arrow_back, size: 12),
+                label: const Text('Previous', style: TextStyle(fontSize: 9)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.cyan.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  minimumSize: const Size(0, 0),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _currentStep < instructions.length - 1
+                    ? () {
+                        setState(() {
+                          _currentStep++;
+                        });
+                        SoundService().playTouchSound();
+                      }
+                    : null,
+                icon: const Icon(Icons.arrow_forward, size: 12),
+                label: const Text('Next', style: TextStyle(fontSize: 9)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.cyan.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  minimumSize: const Size(0, 0),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
